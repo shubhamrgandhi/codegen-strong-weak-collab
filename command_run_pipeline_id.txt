@@ -1,7 +1,0 @@
-nohup bash run_pipeline_repo.sh --model gpt-4o-mini-2024-07-18 > run_logs/agentless_lite_base_gpt-4o-mini0.log 2>&1 &
-
-
-nohup bash run_pipeline_repo.sh --model o3-mini-2025-01-31 > run_logs/agentless_lite_base_o3-mini-2025-01-31.log 2>&1 &
-
-
-nohup bash run_retrieval.sh > run_logs/retrieval_voyage.log 2>&1 &

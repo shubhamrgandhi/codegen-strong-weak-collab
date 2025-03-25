@@ -24,6 +24,14 @@ RETRIEVAL_INSTRUCTION = (
 
 def retrieve_instance(args, row, output_path, repo_locks, output_lock):
     """Process a single row from the DataFrame"""
+    
+    if args.instance_id is not None:
+        if args.instance_id != row['instance_id']:
+            return
+            
+    if args.repo_name is not None:
+        if args.repo_name not in row['instance_id']:
+            return
 
     log_dir = os.path.join(args.output_folder, "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -87,14 +95,16 @@ def retrieve_instance(args, row, output_path, repo_locks, output_lock):
             filter_model_name=args.filter_model,
         )
 
+        # logger.info(f"{file_names}\n\n{file_contents}")
+
         # Test more aggressive filtering
         # Filter both file names and contents together
-        filtered = [
-            (name, content)
-            for name, content in zip(file_names, file_contents)
-            if name.endswith((".js", ".jsx"))
-        ]
-        file_names, file_contents = zip(*filtered) if filtered else ([], [])
+        # filtered = [
+        #     (name, content)
+        #     for name, content in zip(file_names, file_contents)
+        #     if name.endswith((".js", ".jsx"))
+        # ]
+        # file_names, file_contents = zip(*filtered) if filtered else ([], [])
 
         logger.info(f"Retrieved {len(file_names)} files")
 
@@ -260,6 +270,14 @@ def parse_arguments():
         "--filter_multimodal",
         action="store_true",
         help="Filter out files for multimodal SWE-bench",
+    )
+    parser.add_argument(
+        "--instance_id",
+        type=str,
+    )
+    parser.add_argument(
+        "--repo_name",
+        type=str,
     )
 
     return parser.parse_args()

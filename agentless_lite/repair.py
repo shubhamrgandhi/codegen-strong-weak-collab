@@ -99,6 +99,15 @@ Please first localize the bug based on the issue statement, and then generate ed
 
 
 def process_instance(instance, args, file_lock):
+
+    if args.instance_id is not None:
+        if args.instance_id != instance['instance_id']:
+            return
+            
+    if args.repo_name is not None:
+        if args.repo_name not in instance['instance_id']:
+            return
+
     if args.tool_use:
         repair_prompt = AGENTLESS_PROMPT_TOOL_USE
     elif args.multimodal:
@@ -207,6 +216,14 @@ def parse_arguments():
         default="gpt-4o-mini",
     )
     parser.add_argument(
+        "--instance_id",
+        type=str,
+    )
+    parser.add_argument(
+        "--repo_name",
+        type=str,
+    )
+    parser.add_argument(
         "--num_threads",
         type=int,
         default=1,
@@ -282,3 +299,4 @@ if __name__ == "__main__":
         weave.init(f"agentless_{args.output_folder}")
 
     batch(args)
+    print("Finished Generation for all.")

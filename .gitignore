@@ -1,5 +1,12 @@
 *.jsonl
 *.pyc
 *.json
-playground/*
+playground
 results*/*
+run_logs
+openai_lite
+sb-cli-reports
+testbed
+results*
+voyage_lite
+patch_slides

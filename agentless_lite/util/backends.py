@@ -129,7 +129,7 @@ def request_chatgpt_engine(config, logger, base_url=None, max_retries=40, timeou
 
     while ret is None and retries < max_retries:
         try:
-            logger.info("Creating API request")
+            logger.info(f"Creating API request: \n\n{config}")
             ret = client.chat.completions.create(**config)
 
             if ret is None or not hasattr(ret, "choices"):
@@ -349,7 +349,7 @@ class OpenAIGenerator(BaseGenerator):
                     f"Making API call for {num_samples} samples with temperature {temperature}"
                 )
 
-                if args.model == "o3-mini":
+                if "o3-mini" in args.model:
                     config = {
                         "model": args.model,
                         "messages": [{"role": "user", "content": prompt}],
@@ -357,6 +357,7 @@ class OpenAIGenerator(BaseGenerator):
                         "max_completion_tokens": args.max_completion_tokens,
                         "response_format": {"type": "text"},
                         "reasoning_effort": "high",
+                        "store": True,
                     }
                 else:
                     config = {
@@ -366,6 +367,7 @@ class OpenAIGenerator(BaseGenerator):
                         "temperature": temperature,
                         "max_tokens": args.max_completion_tokens,
                         "logprobs": args.logprobs,
+                        "store": True,
                     }
 
                 if image_assets:
@@ -432,7 +434,7 @@ class OpenAIGenerator(BaseGenerator):
             temperature = args.temp
             logger.info(f"Making batch API call with temperature {temperature}")
 
-            if args.model == "o3-mini":
+            if "o3-mini" in args.model:
                 config = {
                     "model": args.model,
                     "messages": [{"role": "user", "content": prompt}],
@@ -440,6 +442,7 @@ class OpenAIGenerator(BaseGenerator):
                     "max_completion_tokens": args.max_completion_tokens,
                     "response_format": {"type": "text"},
                     "reasoning_effort": "high",
+                    "store": True,
                 }
             else:
                 config = {
@@ -449,6 +452,7 @@ class OpenAIGenerator(BaseGenerator):
                     "temperature": temperature,
                     "max_tokens": args.max_completion_tokens,
                     "logprobs": args.logprobs,
+                    "store": True,
                 }
 
             if image_assets:

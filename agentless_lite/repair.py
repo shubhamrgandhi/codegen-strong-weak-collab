@@ -46,6 +46,49 @@ Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you w
 Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
 """
 
+AGENTLESS_PROMPT_WITH_TRAJECTORY = """
+We are currently solving the following issue within our repository. Here is the issue text:
+--- BEGIN ISSUE ---
+{problem_statement}
+--- END ISSUE ---
+
+An expert has already worked on this issue. Here are all of its analyses, attempts and solutions:
+--- BEGIN EXPERT SOLUTIONS AND ATTEMPTS ---
+{trajectory}
+--- END EXPERT SOLUTIONS AND ATTEMPTS ---
+
+Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
+--- BEGIN FILE ---
+{retrieval}
+--- END FILE ---
+
+Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
+
+Every *SEARCH/REPLACE* edit must use this format:
+1. The file path
+2. The start of search block: <<<<<<< SEARCH
+3. A contiguous chunk of lines to search for in the existing source code
+4. The dividing line: =======
+5. The lines to replace into the source code
+6. The end of the replace block: >>>>>>> REPLACE
+
+Here is an example:
+
+```python
+### mathweb/flask/app.py
+<<<<<<< SEARCH
+from flask import Flask
+=======
+import math
+from flask import Flask
+>>>>>>> REPLACE
+```
+
+Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
+Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
+"""
+
+
 AGENTLESS_PROMPT_MULTIMODAL = """
 We are currently solving the following issue within our repository. Here is the issue text:
 --- BEGIN ISSUE ---
@@ -97,6 +140,43 @@ Below are some code segments, each from a relevant file. One or more of these fi
 Please first localize the bug based on the issue statement, and then generate edits to fix the issue.
 """
 
+def load_trajectory(instance_id, trajectory_dir):
+    """
+    Load all trajectory entries from JSON file if it exists.
+    Concatenates all content fields from all entries.
+    """
+    trajectory_path = os.path.join(trajectory_dir, f"{instance_id}.json")
+    
+    if not os.path.exists(trajectory_path):
+        print(f"No trajectory file found at {trajectory_path}")
+        return None
+    
+    try:
+        with open(trajectory_path, 'r', encoding='utf-8') as f:
+            trajectory_data = json.load(f)
+        
+        # Ensure we have a list of responses
+        if not isinstance(trajectory_data, list) or not trajectory_data:
+            print(f"Unexpected trajectory format in {trajectory_path}")
+            return None
+        
+        # Extract and format all content fields
+        all_content = []
+        for i, entry in enumerate(trajectory_data):
+            content = entry.get("content", "")
+            if content:
+                header = f"ATTEMPT {i+1} OF {len(trajectory_data)}"
+                all_content.append(f"{'='*20} {header} {'='*20}\n\n{content}")
+        
+        # Join all content with separators
+        full_trajectory = "\n\n" + "\n\n".join(all_content)
+        
+        return full_trajectory
+    
+    except Exception as e:
+        print(f"Error loading trajectory for {instance_id}: {e}")
+        return None
+
 
 def process_instance(instance, args, file_lock):
 
@@ -108,7 +188,14 @@ def process_instance(instance, args, file_lock):
         if args.repo_name not in instance['instance_id']:
             return
 
-    if args.tool_use:
+    if args.use_raw_trajectories:
+        # Load the trajectory for this instance
+        trajectory = load_trajectory(instance['instance_id'], args.raw_trajectories_dir)
+        if trajectory:
+            repair_prompt = AGENTLESS_PROMPT_WITH_TRAJECTORY
+        else:
+            repair_prompt = AGENTLESS_PROMPT
+    elif args.tool_use:
         repair_prompt = AGENTLESS_PROMPT_TOOL_USE
     elif args.multimodal:
         repair_prompt = AGENTLESS_PROMPT_MULTIMODAL
@@ -119,10 +206,17 @@ def process_instance(instance, args, file_lock):
     for idx, file in enumerate(instance["found_files"]):
         if idx < args.max_files:
             formatted_file = f'### {file}\n{instance["file_contents"][idx]}\n'
-            expected_prompt = repair_prompt.format(
-                problem_statement=instance["problem_description"],
-                retrieval=formatted_files + formatted_file,
-            )
+            if args.use_raw_trajectories and trajectory:
+                expected_prompt = repair_prompt.format(
+                    problem_statement=instance["problem_description"],
+                    retrieval=formatted_files + formatted_file,
+                    trajectory=trajectory
+                )
+            else:
+                expected_prompt = repair_prompt.format(
+                    problem_statement=instance["problem_description"],
+                    retrieval=formatted_files + formatted_file,
+                )
             if num_tokens_from_messages(expected_prompt) > args.max_input_tokens:
                 print(
                     f"Maximum context length exceeded for instance: {instance['instance_id']} after {idx + 1} files"
@@ -130,11 +224,17 @@ def process_instance(instance, args, file_lock):
                 break
             else:
                 formatted_files += formatted_file
-
-    prompt = repair_prompt.format(
-        problem_statement=instance["problem_description"],
-        retrieval=formatted_files,
-    )
+    if args.use_raw_trajectories and trajectory:
+        prompt = repair_prompt.format(
+            problem_statement=instance["problem_description"],
+            retrieval=formatted_files,
+            trajectory=trajectory,
+        )
+    else:
+        prompt = repair_prompt.format(
+            problem_statement=instance["problem_description"],
+            retrieval=formatted_files,
+        )
 
     generator = get_generator(args.backend)
     if generator:
@@ -258,6 +358,17 @@ def parse_arguments():
         "--tool_use",
         action="store_true",
         help="Have the language model call tools to generate the patch (only supported for some models)",
+    )
+    parser.add_argument(
+        "--use_raw_trajectories",
+        action="store_true",
+        help="Have a weak language model use the raw trajectories from a previous run by a strong model",
+    )
+    parser.add_argument(
+        "--raw_trajectories_dir",
+        type=str,
+        default="data/strong_model_trajectories",
+        help="Directory for raw trajectories",
     )
     parser.add_argument("--logprobs", action="store_true")
     parser.add_argument("--warming", action="store_true")

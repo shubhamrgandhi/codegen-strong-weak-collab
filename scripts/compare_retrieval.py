@@ -52,8 +52,8 @@ def compare_entries(original_file, voyage_file):
     return results
 
 if __name__ == "__main__":
-    original_file = "retrieval_original.jsonl"
-    voyage_file = "results_voyage/retrieval_voyage.jsonl"
+    original_file = "results/original/retrieval.jsonl"
+    voyage_file = "results/base/retrieval.jsonl"
     
     results = compare_entries(original_file, voyage_file)
     

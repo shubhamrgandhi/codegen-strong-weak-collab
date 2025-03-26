@@ -26,21 +26,21 @@ def compare_reports(file1, file2):
     repos_only2 = Counter([id.split('__')[0] for id in resolved_only_report2])
     
     # Print results
-    print(f"Total instances with o3-mini: {report1['total_instances']}")
+    print(f"Total instances with gpt-4o-mini with raw traj: {report1['total_instances']}")
     print(f"Total instances with gpt-4o-mini: {report2['total_instances']}")
-    print(f"Completed instances (was able to generate valid patch) with o3-mini: {report1['completed_instances']}")
+    print(f"Completed instances (was able to generate valid patch) with gpt-4o-mini with raw traj: {report1['completed_instances']}")
     print(f"Completed instances (was able to generate valid patch) with gpt-4o-mini: {report2['completed_instances']}")
-    print(f"Resolved instances with o3-mini: {len(resolved1)}")
+    print(f"Resolved instances with gpt-4o-mini with raw traj: {len(resolved1)}")
     print(f"Resolved instances with gpt-4o-mini: {len(resolved2)}")
     print(f"Instances resolved in both reports: {len(resolved_both)}")
-    print(f"Instances resolved only with o3-mini: {len(resolved_only_report1)}")
+    print(f"Instances resolved only with gpt-4o-mini with raw traj: {len(resolved_only_report1)}")
     print(f"Instances resolved only with gpt-4o-mini: {len(resolved_only_report2)}")
     
     print("\nRepository breakdown for instances resolved in both reports:")
     for repo, count in sorted(repos_both.items(), key=lambda x: x[1], reverse=True):
         print(f"  {repo}: {count}")
     
-    print("\nRepository breakdown for instances resolved only with o3-mini:")
+    print("\nRepository breakdown for instances resolved only with gpt-4o-mini with raw traj:")
     for repo, count in sorted(repos_only1.items(), key=lambda x: x[1], reverse=True):
         print(f"  {repo}: {count}")
     
@@ -49,4 +49,4 @@ def compare_reports(file1, file2):
         print(f"  {repo}: {count}")
 
 # Call the function with your file paths
-compare_reports('sb-cli-reports/swe-bench_lite__test__agentless_lite_base_o3-mini-2025-01-31.json', 'sb-cli-reports/swe-bench_lite__test__agentless_lite_base_gpt-4o-mini-2024-07-18.json')
+compare_reports('sb-cli-reports/swe-bench_lite__test__agentless_lite_raw_traj_gpt-4o-mini-2024-07-18.json', 'sb-cli-reports/swe-bench_lite__test__agentless_lite_base_gpt-4o-mini-2024-07-18.json')

@@ -30,9 +30,9 @@ def calculate_cost(tokens_data, results_dir):
         prompt_price = 0.15 / 1_000_000  # $0.15 per million
         completion_price = 0.6 / 1_000_000  # $0.6 per million
     else:
-        # Default to gpt-4o-mini pricing if not specified
-        prompt_price = 0.15 / 1_000_000
-        completion_price = 0.6 / 1_000_000
+        # Default to o3-mini pricing if not specified
+        prompt_price = 1.1 / 1_000_000  # $1.1 per million
+        completion_price = 4.4 / 1_000_000  # $4.4 per million
     
     prompt_tokens = sum(pt for _, pt, _ in tokens_data)
     completion_tokens = sum(ct for ct, _, _ in tokens_data)
@@ -53,7 +53,7 @@ def calculate_cost(tokens_data, results_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate costs from log files.")
-    parser.add_argument("--results_dir", default="results/raw_traj_gpt-4o-mini-2024-07-18",
+    parser.add_argument("--results_dir", default="results/info_gpt-4o-mini-2024-07-18",
                         help="Directory containing logs subdirectory")
     args = parser.parse_args()
     

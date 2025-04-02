@@ -88,6 +88,91 @@ Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you w
 Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
 """
 
+AGENTLESS_PROMPT_WITH_PLAN = """
+We are currently solving the following issue within our repository. Here is the issue text:
+--- BEGIN ISSUE ---
+{problem_statement}
+--- END ISSUE ---
+
+Here is a plan that you can follow to solve this issue:
+--- BEGIN PLAN ---
+{plan}
+--- END PLAN ---
+
+Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
+--- BEGIN FILE ---
+{retrieval}
+--- END FILE ---
+
+Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
+
+Every *SEARCH/REPLACE* edit must use this format:
+1. The file path
+2. The start of search block: <<<<<<< SEARCH
+3. A contiguous chunk of lines to search for in the existing source code
+4. The dividing line: =======
+5. The lines to replace into the source code
+6. The end of the replace block: >>>>>>> REPLACE
+
+Here is an example:
+
+```python
+### mathweb/flask/app.py
+<<<<<<< SEARCH
+from flask import Flask
+=======
+import math
+from flask import Flask
+>>>>>>> REPLACE
+```
+
+Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
+Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
+"""
+
+
+AGENTLESS_PROMPT_WITH_INFO = """
+We are currently solving the following issue within our repository. Here is the issue text:
+--- BEGIN ISSUE ---
+{problem_statement}
+--- END ISSUE ---
+
+Here is some high-level information about the repository that you might find useful to solve this issue:
+--- BEGIN REPOSITORY INFO ---
+{info}
+--- END REPOSITORY INFO ---
+
+Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
+--- BEGIN FILE ---
+{retrieval}
+--- END FILE ---
+
+Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
+
+Every *SEARCH/REPLACE* edit must use this format:
+1. The file path
+2. The start of search block: <<<<<<< SEARCH
+3. A contiguous chunk of lines to search for in the existing source code
+4. The dividing line: =======
+5. The lines to replace into the source code
+6. The end of the replace block: >>>>>>> REPLACE
+
+Here is an example:
+
+```python
+### mathweb/flask/app.py
+<<<<<<< SEARCH
+from flask import Flask
+=======
+import math
+from flask import Flask
+>>>>>>> REPLACE
+```
+
+Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
+Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
+"""
+
 
 AGENTLESS_PROMPT_MULTIMODAL = """
 We are currently solving the following issue within our repository. Here is the issue text:
@@ -178,6 +263,88 @@ def load_trajectory(instance_id, trajectory_dir):
         return None
 
 
+def load_plan(instance_id, plans_path, file_lock=None):
+    """
+    Load a plan from a JSONL file if it exists.
+    Each line in the JSONL file should contain 'instance_id' and 'plan' fields.
+    Thread-safe if a file_lock is provided.
+    
+    Args:
+        instance_id (str): The ID of the instance to find a plan for
+        plans_path (str): Path to the JSONL file containing plans
+        file_lock (threading.Lock, optional): Lock for thread-safe file access
+    
+    Returns:
+        str or None: The plan for the specified instance_id if found, None otherwise
+    """
+    if not os.path.exists(plans_path):
+        print(f"No plans file found at {plans_path}")
+        return None
+    
+    try:
+        # Use a context manager for the lock if provided
+        with file_lock if file_lock else nullcontext():
+            with open(plans_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    plan_data = json.loads(line.strip())
+                    if plan_data.get('instance_id') == instance_id and 'plan' in plan_data:
+                        return plan_data['plan']
+            
+            print(f"No plan found for instance ID: {instance_id}")
+            return None
+    
+    except Exception as e:
+        print(f"Error loading plan for {instance_id}: {e}")
+        return None
+
+
+def load_info(instance_id, info_dir):
+    """
+    Load repository insights for the given instance ID.
+    
+    Args:
+        instance_id (str): The instance ID in the format {something}__{repo_name}-{issue_id}
+        info_dir (str): Directory containing repository insight JSON files
+    
+    Returns:
+        str or None: The repository insights if found, None otherwise
+    """
+    try:
+        # Extract repo name from instance_id
+        # Format is typically {something}__{repo_name}-{issue_id}
+        parts = instance_id.split('__')
+        if len(parts) < 2:
+            print(f"Invalid instance ID format: {instance_id}")
+            return None
+            
+        # Extract repo_name from the second part (before the hyphen)
+        repo_identifier = parts[1]
+        repo_name = repo_identifier.split('-')[0]
+        
+        # Construct path to the insights file
+        insights_path = os.path.join(info_dir, f"{repo_name}_insights.json")
+        
+        if not os.path.exists(insights_path):
+            print(f"No insights file found at {insights_path}")
+            return None
+        
+        # Load the insights file
+        with open(insights_path, 'r', encoding='utf-8') as f:
+            insights_data = json.load(f)
+        
+        # Extract the 'insights' field which contains high-level repository information
+        if 'insights' in insights_data:
+            return insights_data['insights']
+        else:
+            print(f"No 'insights' field found in {insights_path}")
+            return None
+            
+    except Exception as e:
+        print(f"Error loading insights for {instance_id}: {e}")
+        return None
+
+        
+
 def process_instance(instance, args, file_lock):
 
     if args.instance_id is not None:
@@ -193,6 +360,20 @@ def process_instance(instance, args, file_lock):
         trajectory = load_trajectory(instance['instance_id'], args.raw_trajectories_dir)
         if trajectory:
             repair_prompt = AGENTLESS_PROMPT_WITH_TRAJECTORY
+        else:
+            repair_prompt = AGENTLESS_PROMPT
+    elif args.use_plans:
+        # Load the trajectory for this instance
+        plan = load_plan(instance['instance_id'], args.plans_path, file_lock)
+        if plan:
+            repair_prompt = AGENTLESS_PROMPT_WITH_PLAN
+        else:
+            repair_prompt = AGENTLESS_PROMPT
+    elif args.use_info:
+        # Load the trajectory for this instance
+        info = load_info(instance['instance_id'], args.info_dir)
+        if info:
+            repair_prompt = AGENTLESS_PROMPT_WITH_INFO
         else:
             repair_prompt = AGENTLESS_PROMPT
     elif args.tool_use:
@@ -212,6 +393,18 @@ def process_instance(instance, args, file_lock):
                     retrieval=formatted_files + formatted_file,
                     trajectory=trajectory
                 )
+            elif args.use_plans and plan:
+                expected_prompt = repair_prompt.format(
+                    problem_statement=instance["problem_description"],
+                    retrieval=formatted_files + formatted_file,
+                    plan=plan
+                )
+            elif args.use_info and info:
+                expected_prompt = repair_prompt.format(
+                    problem_statement=instance["problem_description"],
+                    retrieval=formatted_files + formatted_file,
+                    info=info
+                )
             else:
                 expected_prompt = repair_prompt.format(
                     problem_statement=instance["problem_description"],
@@ -229,6 +422,18 @@ def process_instance(instance, args, file_lock):
             problem_statement=instance["problem_description"],
             retrieval=formatted_files,
             trajectory=trajectory,
+        )
+    elif args.use_plans and plan:
+        prompt = repair_prompt.format(
+            problem_statement=instance["problem_description"],
+            retrieval=formatted_files,
+            plan=plan,
+        )
+    elif args.use_info and info:
+        prompt = repair_prompt.format(
+            problem_statement=instance["problem_description"],
+            retrieval=formatted_files,
+            info=info,
         )
     else:
         prompt = repair_prompt.format(
@@ -369,6 +574,28 @@ def parse_arguments():
         type=str,
         default="data/strong_model_trajectories",
         help="Directory for raw trajectories",
+    )
+    parser.add_argument(
+        "--use_plans",
+        action="store_true",
+        help="Have a weak language model use a plan generated by a strong model",
+    )
+    parser.add_argument(
+        "--plans_path",
+        type=str,
+        default="results/generate_plan_o3-mini-2025-01-31/all_plans.jsonl",
+        help="JSONL file containing plans",
+    )
+    parser.add_argument(
+        "--use_info",
+        action="store_true",
+        help="Have a weak language model use a high-level repository-specific generated by a strong model",
+    )
+    parser.add_argument(
+        "--info_dir",
+        type=str,
+        default="data/repo_insights",
+        help="Directory for high-level repository-specific information, should contain <repo_name>_insights.json files.",
     )
     parser.add_argument("--logprobs", action="store_true")
     parser.add_argument("--warming", action="store_true")

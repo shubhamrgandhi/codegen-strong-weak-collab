@@ -514,6 +514,101 @@ class OpenAIGenerator(BaseGenerator):
 
         logger.info("Output written successfully")
         return all_responses[-1], output_entry
+    
+    def generate_plan(
+        self,
+        instance,
+        prompt,
+        args,
+        file_lock,
+        output_file,
+        defer_writing=False,
+        image_assets=None,
+    ):
+        logs_dir = os.path.join(os.path.dirname(output_file), "logs")
+        logger = setup_logging(instance["instance_id"], logs_dir)
+        logger.info("Initializing OpenAI client")
+
+        existing_entry = self.get_existing_entry(instance, file_lock, output_file)
+        all_responses = [] if not existing_entry else existing_entry["responses"]
+
+        all_usage = (
+            existing_entry["usage"]
+            if existing_entry
+            else (
+                {"completion_tokens": 0, "prompt_tokens": 0, "logprobs": [], "temp": []}
+                if args.logprobs
+                else {"completion_tokens": 0, "prompt_tokens": 0, "temp": []}
+            )
+        )
+
+        start_index = len(all_responses)
+
+        # Generate all samples in one batch
+        temperature = args.temp
+        logger.info(f"Making batch API call with temperature {temperature}")
+
+        if "o3-mini" in args.model:
+            config = {
+                "model": args.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "n": args.max_retries - start_index,
+                "max_completion_tokens": args.max_completion_tokens,
+                "response_format": {"type": "text"},
+                "reasoning_effort": "high",
+                "store": True,
+            }
+        else:
+            config = {
+                "model": args.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "n": args.max_retries - start_index,
+                "temperature": temperature,
+                "max_tokens": args.max_completion_tokens,
+                "logprobs": args.logprobs,
+                "store": True,
+            }
+
+        completion = request_chatgpt_engine(config, logger)
+
+        if completion is None:
+            raise Exception("Failed to get response from API")
+
+        if args.logprobs:
+            logprobs_data = [
+                {
+                    "token": lp.token,
+                    "logprob": lp.logprob,
+                    "bytes": lp.bytes,
+                    "top_logprobs": lp.top_logprobs,
+                }
+                for lp in completion.choices[0].logprobs.content
+            ]
+            all_usage["logprobs"].extend(
+                [logprobs_data] * (args.max_retries - start_index)
+            )
+
+        all_responses.extend(
+            [choice.message.content for choice in completion.choices]
+        )
+
+        all_usage["completion_tokens"] += completion.usage.completion_tokens
+        all_usage["prompt_tokens"] += completion.usage.prompt_tokens
+        all_usage["temp"].extend([temperature] * (args.max_retries - start_index))
+        if args.logprobs and hasattr(completion, "logprobs"):
+            all_usage["logprobs"].extend(completion.logprobs)
+
+        output_entry = {
+            "instance_id": instance["instance_id"],
+            "plan": all_responses[-1],
+            "usage": all_usage,
+        }
+
+        if not defer_writing:
+            self.update_output_file(output_entry, instance, file_lock, output_file)
+
+        logger.info("Output written successfully")
+        return all_responses[-1], output_entry
 
 
 class DeepSeekGenerator(BaseGenerator):

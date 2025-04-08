@@ -53,7 +53,7 @@ def calculate_cost(tokens_data, results_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate costs from log files.")
-    parser.add_argument("--results_dir", default="results/info_gpt-4o-mini-2024-07-18",
+    parser.add_argument("--results_dir", default="results/fs_with_file_similarity_successful_5_gpt-4o-mini-2024-07-18",
                         help="Directory containing logs subdirectory")
     args = parser.parse_args()
     

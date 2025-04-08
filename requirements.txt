@@ -12,3 +12,4 @@ weave
 anthropic
 tree_sitter_javascript
 tree_sitter
+sentence-transformers

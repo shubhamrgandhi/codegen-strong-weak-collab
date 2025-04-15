@@ -21,11 +21,19 @@ def calculate_average_attempts(jsonl_path, expected_count=300):
             for line in file:
                 try:
                     entry = json.loads(line)
-                    if "attempt" in entry:
-                        total_attempts += entry["attempt"]
+                    if "model_name_or_path_actual" in entry:
+                        if "o3-mini" not in entry["model_name_or_path_actual"]:
+                            if "attempt" in entry:
+                                total_attempts += entry["attempt"]
+                            else:
+                                # Count entries without "attempt" field as having 10 attempts
+                                total_attempts += 10
                     else:
-                        # Count entries without "attempt" field as having 10 attempts
-                        total_attempts += 10
+                        if "attempt" in entry:
+                            total_attempts += entry["attempt"]
+                        else:
+                            # Count entries without "attempt" field as having 10 attempts
+                            total_attempts += 10
                     entry_count += 1
                 except json.JSONDecodeError:
                     print(f"Warning: Skipping invalid JSON line")

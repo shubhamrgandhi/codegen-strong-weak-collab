@@ -31,7 +31,7 @@ done
 EXP="raw_traj"
 
 # Set token limits based on model
-if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* ]]; then
+if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* || "$MODEL" == "qwen25coder7b"* ]]; then
   MAX_COMPLETION_TOKENS=15000
   MAX_INPUT_TOKENS=110000
 else

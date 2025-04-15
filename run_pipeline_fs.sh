@@ -30,7 +30,7 @@ done
 
 FS_MODE="similarity_successful"
 K="1"
-EXP=fs_with_file_${FS_MODE}_${K}
+EXP=fs_with_window_${FS_MODE}_${K}
 
 # Set token limits based on model
 if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* ]]; then
@@ -51,7 +51,7 @@ python agentless_lite/repair.py \
         --max_completion_tokens $MAX_COMPLETION_TOKENS \
         --max_input_tokens $MAX_INPUT_TOKENS \
         --backend openai \
-        --num_threads 4 \
+        --num_threads 8 \
         --max_retries 10 \
         --max_files 5 \
         --fs_k $K \
@@ -60,13 +60,13 @@ python agentless_lite/repair.py \
 
 echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &"
 
-sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &
+# sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &
 
 # =======================================================================
 
 FS_MODE="similarity_successful"
 K="3"
-EXP=fs_with_file_${FS_MODE}_${K}
+EXP=fs_with_window_${FS_MODE}_${K}
 
 # Set token limits based on model
 if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* ]]; then
@@ -87,7 +87,7 @@ python agentless_lite/repair.py \
         --max_completion_tokens $MAX_COMPLETION_TOKENS \
         --max_input_tokens $MAX_INPUT_TOKENS \
         --backend openai \
-        --num_threads 4 \
+        --num_threads 8 \
         --max_retries 10 \
         --max_files 5 \
         --fs_k $K \
@@ -96,14 +96,14 @@ python agentless_lite/repair.py \
 
 echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &"
 
-sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &
+# sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &
 
 
 # =======================================================================
 
 FS_MODE="similarity_successful"
 K="5"
-EXP=fs_with_file_${FS_MODE}_${K}
+EXP=fs_with_window_${FS_MODE}_${K}
 
 # Set token limits based on model
 if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* ]]; then
@@ -124,7 +124,7 @@ python agentless_lite/repair.py \
         --max_completion_tokens $MAX_COMPLETION_TOKENS \
         --max_input_tokens $MAX_INPUT_TOKENS \
         --backend openai \
-        --num_threads 4 \
+        --num_threads 8 \
         --max_retries 10 \
         --max_files 5 \
         --fs_k $K \
@@ -133,4 +133,4 @@ python agentless_lite/repair.py \
 
 echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &"
 
-sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &
+# sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL}_1 swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}_1.log 2>&1 &

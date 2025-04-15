@@ -28,10 +28,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-EXP="fs_successful"
+EXP="first_strong"
 
 # Set token limits based on model
-if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* ]]; then
+if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* || "$MODEL" == "qwen25coder7b"* ]]; then
   MAX_COMPLETION_TOKENS=15000
   MAX_INPUT_TOKENS=110000
 else
@@ -52,10 +52,9 @@ python agentless_lite/repair.py \
         --num_threads 8 \
         --max_retries 10 \
         --max_files 5 \
-        --use_fs_successful \
-        --instance_id astropy__astropy-6938
+        --use_strong_first
 
 
-# echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &"
+echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &"
 
 # sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &

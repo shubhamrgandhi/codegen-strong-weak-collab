@@ -52,60 +52,6 @@ OPENAI_TOOLS = [
     }
 ]
 
-DEEPSEEK_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "str_replace_editor",
-            "description": STR_REPLACE_EDITOR_DESCRIPTION,
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "description": "Full path to file, e.g. `folder/file.py`.",
-                        "type": "string",
-                    },
-                    "old_str": {
-                        "description": "Required parameter containing the string in `path` to replace.",
-                        "type": "string",
-                    },
-                    "new_str": {
-                        "description": "Optional parameter containing the new string (if not given, no string will be added).",
-                        "type": "string",
-                    },
-                },
-                "required": ["path", "old_str"],
-            },
-        },
-    }
-]
-
-ANTHROPIC_TOOLS = [
-    {
-        "name": "str_replace_editor",
-        "description": STR_REPLACE_EDITOR_DESCRIPTION,
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "description": "Full path to file, e.g. `folder/file.py`.",
-                    "type": "string",
-                },
-                "old_str": {
-                    "description": "Required parameter containing the string in `path` to replace.",
-                    "type": "string",
-                },
-                "new_str": {
-                    "description": "Optional parameter containing the new string (if not given, no string will be added).",
-                    "type": "string",
-                },
-            },
-            "required": ["path", "old_str"],
-            "cache_control": {"type": "ephemeral"},
-        },
-    }
-]
-
 
 class CodeGenerator(ABC):
     @abstractmethod
@@ -119,13 +65,19 @@ class CodeGenerator(ABC):
         pass
 
 
-def request_chatgpt_engine(config, logger, base_url=None, max_retries=40, timeout=100):
+def request_chatgpt_engine(config, logger, api_key=None, base_url=None, max_retries=40, timeout=100):
     ret = None
     retries = 0
 
-    client = openai.OpenAI(
-        base_url=base_url,
-    )
+    if api_key:
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
+    else:
+        client = openai.OpenAI(
+            base_url=base_url,
+        )
 
     while ret is None and retries < max_retries:
         try:
@@ -231,7 +183,7 @@ class BaseGenerator(CodeGenerator):
                 outfile.writelines(lines)
 
     def generate_with_retries(
-        self, instance, prompt, args, file_lock, output_file, image_assets=None
+        self, instance, prompt, args, file_lock, output_file, image_assets=None, return_response=False
     ):
         # Create a thread-local copy of args
         local_args = deepcopy(args)
@@ -241,8 +193,8 @@ class BaseGenerator(CodeGenerator):
         logger = setup_logging(instance["instance_id"], logs_dir)
 
         temperature = local_args.temp
-        local_args.max_retries = 1
-
+        last_response = None
+        
         for attempt in range(args.max_retries):
             try:
                 local_args.temp = temperature
@@ -255,6 +207,8 @@ class BaseGenerator(CodeGenerator):
                     defer_writing=True,
                     image_assets=image_assets,
                 )
+                
+                last_response = response
 
                 # Handle both string responses and tool use responses
                 git_diff = None
@@ -284,13 +238,15 @@ class BaseGenerator(CodeGenerator):
                         with open(output_file, "a", encoding="utf-8") as f:
                             output = {
                                 "instance_id": instance["instance_id"],
-                                "model_name_or_path": "agentless_lite_greedy",
+                                "model_name_or_path": f"agentless_lite_{args.model}",
                                 "model_patch": git_diff,
                                 "temperature": temperature,
                                 "attempt": attempt + 1,
                             }
                             f.write(json.dumps(output) + "\n")
 
+                    if return_response:
+                        return git_diff, last_response
                     return git_diff
 
                 temperature = min(1.0, temperature + 0.1)
@@ -298,6 +254,8 @@ class BaseGenerator(CodeGenerator):
                 logger.error(f"Error in generation attempt {attempt + 1}: {e}")
                 temperature = min(1.0, temperature + 0.1)
 
+        if return_response:
+            return False, last_response
         return False
 
 
@@ -611,124 +569,6 @@ class OpenAIGenerator(BaseGenerator):
         return all_responses[-1], output_entry
 
 
-class DeepSeekGenerator(BaseGenerator):
-    def generate(
-        self,
-        instance,
-        prompt,
-        args,
-        file_lock,
-        output_file,
-        defer_writing=False,
-        image_assets=None,
-    ):
-        logs_dir = os.path.join(os.path.dirname(output_file), "logs")
-        logger = setup_logging(instance["instance_id"], logs_dir)
-        logger.info("Preparing DeepSeek configuration")
-
-        existing_entry = self.get_existing_entry(instance, file_lock, output_file)
-        all_responses = [] if not existing_entry else existing_entry["responses"]
-
-        all_usage = (
-            existing_entry["usage"]
-            if existing_entry
-            else (
-                {"completion_tokens": 0, "prompt_tokens": 0, "logprobs": [], "temp": []}
-                if args.logprobs
-                else {"completion_tokens": 0, "prompt_tokens": 0, "temp": []}
-            )
-        )
-
-        # Make multiple API calls based on max_retries
-        start_index = len(all_responses)
-        for i in range(start_index, args.max_retries):
-            temperature = (
-                self.get_temperature_for_generation(i, args.temp, args.max_retries)
-                if args.warming
-                else args.temp
-            )
-            logger.info(
-                f"Making API call {i+1}/{args.max_retries} with temperature {temperature}"
-            )
-
-            if args.model == "deepseek-reasoner":
-                config = {
-                    "model": args.model,
-                    "max_tokens": args.max_completion_tokens,
-                    "messages": [{"role": "user", "content": prompt}],
-                }
-            else:
-                config = {
-                    "model": args.model,
-                    "max_tokens": args.max_completion_tokens,
-                    "temperature": temperature,
-                    "n": 1,
-                    "logprobs": args.logprobs,
-                    "messages": [
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": prompt},
-                    ],
-                }
-
-            if image_assets:
-                logger.info(type(image_assets))
-                logger.info(image_assets)
-                content = [{"type": "text", "text": prompt}]
-                for image in image_assets:
-                    content.append({"type": "image_url", "image_url": {"url": image}})
-                config["messages"] = [{"role": "user", "content": content}]
-
-            if args.tool_use:
-                config.update(
-                    {
-                        "tools": DEEPSEEK_TOOLS,
-                        "tool_choice": "required",
-                    }
-                )
-
-            gener = request_chatgpt_engine(
-                config, logger=logger, base_url="https://api.deepseek.com"
-            )
-
-            if gener:
-                response = (
-                    gener.choices[0].message.tool_calls[0]
-                    if args.tool_use
-                    else gener.choices[0].message.content
-                )
-                all_responses.append(response)
-                if args.logprobs:
-                    logprobs_data = [
-                        {
-                            "token": lp.token,
-                            "logprob": lp.logprob,
-                            "bytes": lp.bytes,
-                            "top_logprobs": lp.top_logprobs,
-                        }
-                        for lp in gener.choices[0].logprobs.content
-                    ]
-                    all_usage["logprobs"].append(logprobs_data)
-                if args.warming:
-                    all_usage["temp"].append(temperature)
-
-            else:
-                all_responses.append("")
-
-            output_entry = {
-                "instance_id": instance["instance_id"],
-                "found_files": instance["found_files"],
-                "file_contents": instance["file_contents"],
-                "responses": all_responses,
-                "usage": all_usage,
-            }
-
-            if not defer_writing:
-                self.update_output_file(output_entry, instance, file_lock, output_file)
-
-        logger.info("Output written successfully")
-        return all_responses[-1], output_entry
-
-
 class OpenRouterGenerator(BaseGenerator):
     def generate(
         self,
@@ -768,24 +608,20 @@ class OpenRouterGenerator(BaseGenerator):
             logger.info(
                 f"Making API call {i+1}/{args.max_retries} with temperature {temperature}"
             )
-
+            if args.model == "qwen-2.5-coder-32b-instruct":
+                model_name = "qwen/qwen-2.5-coder-32b-instruct:free"
+            elif args.model == "deepseek-r1-distill-llama-70b":
+                model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"
+            else:
+                model_name = args.model
             config = {
-                "model": args.model,
+                "model": model_name,
                 "temperature": temperature,
                 "n": 1,
                 "messages": [
                     {"role": "user", "content": prompt},
                 ],
             }
-
-            if image_assets:
-                for image in image_assets:
-                    content = [{"type": "text", "text": prompt}]
-                    for image in image_assets:
-                        content.append(
-                            {"type": "image_url", "image_url": {"url": image}}
-                        )
-                    config["messages"] = [{"role": "user", "content": content}]
 
             if args.tool_use:
                 config.update(
@@ -795,8 +631,12 @@ class OpenRouterGenerator(BaseGenerator):
                     }
                 )
 
+            # gener = request_chatgpt_engine(
+            #     config, logger=logger, base_url="https://openrouter.ai/api/v1", api_key=os.environ["OPENROUTER_API_KEY"]
+            # )
+
             gener = request_chatgpt_engine(
-                config, logger=logger, base_url="https://openrouter.ai/api/v1"
+                config, logger=logger
             )
 
             if gener:
@@ -849,48 +689,8 @@ def get_base64_from_url(image_url):
     return img_str
 
 
-def request_anthropic_engine(config, logger, max_retries=40):
-    ret = None
-    retries = 0
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    while ret is None and retries < max_retries:
-        try:
-            logger.info("Creating Anthropic API request")
-            ret = client.messages.create(**config)
-
-            if ret is None:
-                logger.error(f"Invalid response received: {ret}")
-                raise Exception("Invalid API response")
-
-        except anthropic.APIError as e:
-            if isinstance(e, anthropic.BadRequestError):
-                logger.error("Request invalid")
-                logger.error(str(e))
-                raise Exception("Invalid API Request")
-            elif isinstance(e, anthropic.RateLimitError):
-                logger.info("Rate limit exceeded. Waiting...")
-                logger.error(str(e))
-                time.sleep(5)
-            elif isinstance(e, anthropic.APIConnectionError):
-                logger.info("API connection error. Waiting...")
-                logger.error(str(e))
-                time.sleep(5)
-            else:
-                logger.info("Unknown error. Waiting...")
-                logger.error(str(e))
-                time.sleep(1)
-
-        retries += 1
-        if retries >= max_retries:
-            logger.error(f"Max retries ({max_retries}) exceeded")
-            ret = None
-
-    logger.info(f"API response {ret}")
-    return ret
-
-
-class AnthropicGenerator(BaseGenerator):
+class VLLMGenerator(BaseGenerator):
     def generate(
         self,
         instance,
@@ -903,7 +703,7 @@ class AnthropicGenerator(BaseGenerator):
     ):
         logs_dir = os.path.join(os.path.dirname(output_file), "logs")
         logger = setup_logging(instance["instance_id"], logs_dir)
-        logger.info("Initializing Anthropic client")
+        logger.info("Initializing VLLM client via OpenAI interface")
 
         existing_entry = self.get_existing_entry(instance, file_lock, output_file)
         all_responses = [] if not existing_entry else existing_entry["responses"]
@@ -911,100 +711,157 @@ class AnthropicGenerator(BaseGenerator):
         all_usage = (
             existing_entry["usage"]
             if existing_entry
-            else {"completion_tokens": 0, "prompt_tokens": 0, "temp": []}
+            else (
+                {"completion_tokens": 0, "prompt_tokens": 0, "logprobs": [], "temp": []}
+                if args.logprobs
+                else {"completion_tokens": 0, "prompt_tokens": 0, "temp": []}
+            )
         )
 
         start_index = len(all_responses)
-        for i in range(start_index, args.max_retries):
-            temperature = (
-                self.get_temperature_for_generation(i, args.temp, args.max_retries)
-                if args.warming
-                else args.temp
-            )
-            logger.info(
-                f"Making API call {i+1}/{args.max_retries} with temperature {temperature}"
-            )
 
-            config = {
-                "model": args.model,
-                "max_tokens": args.max_completion_tokens,
-                "temperature": temperature,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt,
-                                "cache_control": {"type": "ephemeral"},
-                            }
-                        ],
-                    }
-                ],
-            }
+        if args.warming:
+            # Group generations by temperature
+            temp_groups = {}
+            for i in range(start_index, args.max_retries):
+                temperature = self.get_temperature_for_generation(
+                    i, args.temp, args.max_retries
+                )
+                if temperature not in temp_groups:
+                    temp_groups[temperature] = []
+                temp_groups[temperature].append(i)
 
-            if args.model == "claude-3-7-sonnet-20250219":
-                config["temperature"] = 1
-                config["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": args.max_completion_tokens - 4096,
+            # Generate samples for each temperature group
+            for temperature, indices in temp_groups.items():
+                num_samples = len(indices)
+                logger.info(
+                    f"Making API call for {num_samples} samples with temperature {temperature}"
+                )
+
+                model_name = "Qwen/Qwen2.5-Coder-7B-Instruct" if args.model == "qwen25coder7b" else args.model
+                
+                # VLLM specific configuration
+                config = {
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "n": args.max_retries - start_index,
+                    "temperature": temperature,
+                    "max_tokens": args.max_completion_tokens,
+                    "logprobs": args.logprobs,
+                    "store": True,
+                    "extra_body": {
+                        "repetition_penalty": 1.05,
+                    },
                 }
 
-            if args.tool_use:
-                config["tools"] = ANTHROPIC_TOOLS
+                # Image assets not supported in vLLM for now
+                if image_assets:
+                    logger.warning("Image assets are not supported in vLLM, ignoring...")
 
-            if image_assets:
-                content = config["messages"][0]["content"]
-                for image in image_assets:
-                    image_base64 = get_base64_from_url(image)
-                    content.append(
+                # Use base_url for vLLM API server
+                completion = request_chatgpt_engine(
+                    config, 
+                    logger, 
+                    base_url="http://localhost:8080/v1",
+                    timeout=300  # Longer timeout for local inference
+                )
+
+                if completion is None:
+                    raise Exception("Failed to get response from vLLM API")
+
+                if args.logprobs and hasattr(completion.choices[0], "logprobs"):
+                    logprobs_data = [
                         {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/png",
-                                "data": image_base64,
-                                # "cache_control": {"type": "ephemeral"}
-                            },
+                            "token": lp.token,
+                            "logprob": lp.logprob,
+                            "bytes": lp.bytes if hasattr(lp, "bytes") else None,
+                            "top_logprobs": lp.top_logprobs if hasattr(lp, "top_logprobs") else None,
                         }
+                        for lp in completion.choices[0].logprobs.content
+                    ]
+                    all_usage["logprobs"].extend([logprobs_data] * num_samples)
+
+                all_responses.extend(
+                    [choice.message.content for choice in completion.choices]
+                )
+
+                # Update usage information
+                all_usage["completion_tokens"] += completion.usage.completion_tokens
+                all_usage["prompt_tokens"] += completion.usage.prompt_tokens
+                all_usage["temp"].extend([temperature] * num_samples)
+
+                output_entry = {
+                    "instance_id": instance["instance_id"],
+                    "found_files": instance["found_files"],
+                    "file_contents": instance["file_contents"],
+                    "responses": all_responses,
+                    "usage": all_usage,
+                }
+
+                if not defer_writing:
+                    self.update_output_file(
+                        output_entry, instance, file_lock, output_file
                     )
+        else:
+            # Generate all samples in one batch
+            temperature = args.temp
+            logger.info(f"Making batch API call with temperature {temperature}")
 
-            completion = request_anthropic_engine(config, logger)
-
-            if completion:
-                if args.tool_use:
-                    logger.info("Processing tool use response")
-                    logger.info(f"Raw completion: {completion}")
-                    logger.info(f"Content blocks: {completion.content}")
-
-                    # Extract tool use commands
-                    edits = []
-                    for block in completion.content:
-                        logger.info(f"Processing content block: {block}")
-                        logger.info(f"Block type: {block.type}")
-
-                        if block.type == "tool_use":
-                            params = block.input
-                            logger.info(f"Tool call parameters: {params}")
-                            edits.append(
-                                (
-                                    params["path"],
-                                    params["old_str"],
-                                    params.get("new_str", ""),
-                                )
-                            )
-                            logger.info(f"Added edit: {edits[-1]}")
-
-                    logger.info(f"Final collected edits: {edits}")
-                    response = edits
-                else:
-                    response = completion.content[0].text
-
-                all_responses.append(response)
-                if args.warming:
-                    all_usage["temp"].append(temperature)
+            if args.model == "qwen25coder7b":
+                model_name = "Qwen/Qwen2.5-Coder-7B-Instruct"
+            elif args.model == "DeepSeek-R1-Distill-Qwen-7B":
+                model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
             else:
-                all_responses.append("" if not args.tool_use else [])
+                model_name = args.model
+            
+            # VLLM specific configuration
+            config = {
+                "model": model_name,
+                "messages": [{"role": "user", "content": prompt}],
+                "n": args.max_retries - start_index,
+                "temperature": temperature,
+                "max_tokens": args.max_completion_tokens,
+                "logprobs": args.logprobs,
+                "extra_body": {
+                    "repetition_penalty": 1.05,
+                },
+            }
+
+            # Image assets not supported in vLLM for now
+            if image_assets:
+                logger.warning("Image assets are not supported in vLLM, ignoring...")
+
+            # Use base_url for vLLM API server
+            completion = request_chatgpt_engine(
+                config, 
+                logger, 
+                base_url="http://localhost:8080/v1",
+                timeout=300  # Longer timeout for local inference
+            )
+
+            if completion is None:
+                raise Exception("Failed to get response from vLLM API")
+
+            if args.logprobs and hasattr(completion.choices[0], "logprobs"):
+                logprobs_data = [
+                    {
+                        "token": lp.token,
+                        "logprob": lp.logprob,
+                        "bytes": lp.bytes if hasattr(lp, "bytes") else None,
+                        "top_logprobs": lp.top_logprobs if hasattr(lp, "top_logprobs") else None,
+                    }
+                    for lp in completion.choices[0].logprobs.content
+                ]
+                all_usage["logprobs"].extend([logprobs_data] * (args.max_retries - start_index))
+
+            all_responses.extend(
+                [choice.message.content for choice in completion.choices]
+            )
+
+            # Update usage information
+            all_usage["completion_tokens"] += completion.usage.completion_tokens
+            all_usage["prompt_tokens"] += completion.usage.prompt_tokens
+            all_usage["temp"].extend([temperature] * (args.max_retries - start_index))
 
             output_entry = {
                 "instance_id": instance["instance_id"],
@@ -1024,8 +881,7 @@ class AnthropicGenerator(BaseGenerator):
 def get_generator(backend_type):
     generators = {
         "openai": OpenAIGenerator(),
-        "deepseek": DeepSeekGenerator(),
         "open_router": OpenRouterGenerator(),
-        "anthropic": AnthropicGenerator(),
+        "vllm": VLLMGenerator(),
     }
     return generators.get(backend_type)

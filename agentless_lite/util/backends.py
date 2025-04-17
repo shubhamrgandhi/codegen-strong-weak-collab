@@ -5,6 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
+import sys
 
 import anthropic
 import openai
@@ -194,6 +195,7 @@ class BaseGenerator(CodeGenerator):
 
         temperature = local_args.temp
         last_response = None
+        local_args.max_retries = 1
         
         for attempt in range(args.max_retries):
             try:

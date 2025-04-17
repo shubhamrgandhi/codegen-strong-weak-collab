@@ -146,7 +146,7 @@ def calculate_cost(tokens_data):
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate costs from log files.")
-    parser.add_argument("--results_dir", default="results/first_strong_gpt-4o-mini-2024-07-18",
+    parser.add_argument("--results_dir", default="results/prompt_reduction_o3-mini-2025-01-31",
                         help="Directory containing logs subdirectory")
     args = parser.parse_args()
     

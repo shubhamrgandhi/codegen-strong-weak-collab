@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Default values from the original script
-# DEFAULT_MODEL="gpt-4o-mini-2024-07-18"
-DEFAULT_MODEL="o3-mini-2025-01-31"
+DEFAULT_MODEL="gpt-4o-mini-2024-07-18"
+# DEFAULT_MODEL="o3-mini-2025-01-31"
 DEFAULT_REPO_NAME="astropy"
 
 # Initialize variables with default values
@@ -28,12 +28,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-EXP="base"
+EXP="prompt_reduction"
 
 # Set token limits based on model
-if [[ "$MODEL" == "o3-mini-2025-01-31"* ]]; then
-  MAX_COMPLETION_TOKENS=78000
-  MAX_INPUT_TOKENS=118000
+if [[ "$MODEL" == "gpt-4o-mini-2024-07-18"* || "$MODEL" == "qwen25coder7b"* ]]; then
+  MAX_COMPLETION_TOKENS=15000
+  MAX_INPUT_TOKENS=110000
 else
   MAX_COMPLETION_TOKENS=15000
   MAX_INPUT_TOKENS=110000
@@ -52,7 +52,10 @@ python agentless_lite/repair.py \
         --num_threads 8 \
         --max_retries 10 \
         --max_files 5 \
+        --use_prompt_reduction \
+        --weak_model gpt-4o-mini-2024-07-18 \
         --instance_id astropy__astropy-6938
+
 
 echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &"
 

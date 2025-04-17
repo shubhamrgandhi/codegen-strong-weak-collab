@@ -10,6 +10,7 @@ import weave
 from agentless_lite.util.backends import get_generator
 from agentless_lite.util.repair import num_tokens_from_messages
 from agentless_lite.util.loading import *
+from agentless_lite.util.prompts import *
 
 from transformers import AutoTokenizer, AutoModel
 import torch
@@ -22,212 +23,66 @@ import traceback
 import random
 random.seed(42)
 
-AGENTLESS_PROMPT = """
-We are currently solving the following issue within our repository. Here is the issue text:
---- BEGIN ISSUE ---
-{problem_statement}
---- END ISSUE ---
-
-Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
---- BEGIN FILE ---
-{retrieval}
---- END FILE ---
-
-Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
-
-Every *SEARCH/REPLACE* edit must use this format:
-1. The file path
-2. The start of search block: <<<<<<< SEARCH
-3. A contiguous chunk of lines to search for in the existing source code
-4. The dividing line: =======
-5. The lines to replace into the source code
-6. The end of the replace block: >>>>>>> REPLACE
-
-Here is an example:
-
-```python
-### mathweb/flask/app.py
-<<<<<<< SEARCH
-from flask import Flask
-=======
-import math
-from flask import Flask
->>>>>>> REPLACE
-```
-
-Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
-Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
-"""
-
-AGENTLESS_PROMPT_WITH_TRAJECTORY = """
-We are currently solving the following issue within our repository. Here is the issue text:
---- BEGIN ISSUE ---
-{problem_statement}
---- END ISSUE ---
-
-An expert has already worked on this issue. Here are all of its analyses, attempts and solutions:
---- BEGIN EXPERT SOLUTIONS AND ATTEMPTS ---
-{trajectory}
---- END EXPERT SOLUTIONS AND ATTEMPTS ---
-
-Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
---- BEGIN FILE ---
-{retrieval}
---- END FILE ---
-
-Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
-
-Every *SEARCH/REPLACE* edit must use this format:
-1. The file path
-2. The start of search block: <<<<<<< SEARCH
-3. A contiguous chunk of lines to search for in the existing source code
-4. The dividing line: =======
-5. The lines to replace into the source code
-6. The end of the replace block: >>>>>>> REPLACE
-
-Here is an example:
-
-```python
-### mathweb/flask/app.py
-<<<<<<< SEARCH
-from flask import Flask
-=======
-import math
-from flask import Flask
->>>>>>> REPLACE
-```
-
-Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
-Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
-"""
-
-AGENTLESS_PROMPT_WITH_PLAN = """
-We are currently solving the following issue within our repository. Here is the issue text:
---- BEGIN ISSUE ---
-{problem_statement}
---- END ISSUE ---
-
-Here is a plan that you can follow to solve this issue:
---- BEGIN PLAN ---
-{plan}
---- END PLAN ---
-
-Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
---- BEGIN FILE ---
-{retrieval}
---- END FILE ---
-
-Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
-
-Every *SEARCH/REPLACE* edit must use this format:
-1. The file path
-2. The start of search block: <<<<<<< SEARCH
-3. A contiguous chunk of lines to search for in the existing source code
-4. The dividing line: =======
-5. The lines to replace into the source code
-6. The end of the replace block: >>>>>>> REPLACE
-
-Here is an example:
-
-```python
-### mathweb/flask/app.py
-<<<<<<< SEARCH
-from flask import Flask
-=======
-import math
-from flask import Flask
->>>>>>> REPLACE
-```
-
-Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
-Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
-"""
-
-
-AGENTLESS_PROMPT_WITH_INFO = """
-We are currently solving the following issue within our repository. Here is the issue text:
---- BEGIN ISSUE ---
-{problem_statement}
---- END ISSUE ---
-
-Here is some high-level information about the repository that you might find useful to solve this issue:
---- BEGIN REPOSITORY INFO ---
-{info}
---- END REPOSITORY INFO ---
-
-Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
---- BEGIN FILE ---
-{retrieval}
---- END FILE ---
-
-Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
-
-Every *SEARCH/REPLACE* edit must use this format:
-1. The file path
-2. The start of search block: <<<<<<< SEARCH
-3. A contiguous chunk of lines to search for in the existing source code
-4. The dividing line: =======
-5. The lines to replace into the source code
-6. The end of the replace block: >>>>>>> REPLACE
-
-Here is an example:
-
-```python
-### mathweb/flask/app.py
-<<<<<<< SEARCH
-from flask import Flask
-=======
-import math
-from flask import Flask
->>>>>>> REPLACE
-```
-
-Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
-Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
-"""
-
-
-AGENTLESS_PROMPT_WITH_FEW_SHOT = """
-Here are some {similar}example issues from the same repository along with the target file that were changed and final patch generated by an expert{successful}:
---- BEGIN EXAMPLES ---
-{few_shot_examples}
---- END EXAMPLES ---
-
-We are currently solving the following issue within our repository. Here is the issue text:
---- BEGIN ISSUE ---
-{problem_statement}
---- END ISSUE ---
-
-Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
---- BEGIN FILE ---
-{retrieval}
---- END FILE ---
-
-Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
-
-Every *SEARCH/REPLACE* edit must use this format:
-1. The file path
-2. The start of search block: <<<<<<< SEARCH
-3. A contiguous chunk of lines to search for in the existing source code
-4. The dividing line: =======
-5. The lines to replace into the source code
-6. The end of the replace block: >>>>>>> REPLACE
-
-Here is an example:
-
-```python
-### mathweb/flask/app.py
-<<<<<<< SEARCH
-from flask import Flask
-=======
-import math
-from flask import Flask
->>>>>>> REPLACE
-```
-
-Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
-Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
-"""
+def reduce_prompt_context(generator, instance, formatted_files, args, file_lock):
+    """
+    Use the weak model to identify relevant code sections and reduce the prompt context.
+    
+    Args:
+        instance: The current instance being processed
+        formatted_files: The full formatted file content
+        args: Command line arguments
+        file_lock: Thread lock for file operations
+        
+    Returns:
+        Reduced context containing only relevant code sections
+    """
+    # Create a generator for the weak model
+    # generator = get_generator(args.backend)
+    
+    # Use a minimal prompt to ask the weak model to identify relevant code sections
+    reduction_prompt = REDUCTION_PROMPT
+    
+    # Format the reduction prompt
+    prompt = reduction_prompt.format(
+        problem_statement=instance["problem_description"],
+        retrieval=formatted_files,
+    )
+    
+    # Create a temporary copy of args for the weak model
+    weak_args = deepcopy(args)
+    weak_args.model = args.weak_model if hasattr(args, 'weak_model') else args.model
+    weak_args.max_retries = 1  # Only try once for the reduction
+    weak_args.temp = 0  # Use temperature 0 for more deterministic results
+    
+    # Generate the reduced context using the weak model
+    print(f"Generating reduced context for {instance['instance_id']} using {weak_args.model}")
+    
+    # Call the model to identify relevant code sections
+    response, _ = generator.generate(
+        instance,
+        prompt,
+        weak_args,
+        file_lock,
+        args.output_file,
+        defer_writing=True,
+        image_assets=instance.get("image_assets", None)
+    )
+    
+    if not response:
+        print(f"Warning: Failed to reduce context for {instance['instance_id']}, using full context instead")
+        return formatted_files
+        
+    # Extract the code sections from the response
+    reduced_context = response
+    
+    # # Calculate token savings
+    # original_tokens = num_tokens_from_messages(formatted_files)
+    # reduced_tokens = num_tokens_from_messages(reduced_context)
+    # savings_percentage = ((original_tokens - reduced_tokens) / original_tokens) * 100 if original_tokens > 0 else 0
+    
+    # print(f"Context reduction for {instance['instance_id']}: {original_tokens} → {reduced_tokens} tokens ({savings_percentage:.2f}% reduction)")
+    
+    return reduced_context
 
 def process_instance(instance, args, file_lock):
 
@@ -321,6 +176,19 @@ def process_instance(instance, args, file_lock):
                 break
             else:
                 formatted_files += formatted_file
+    
+    generator = get_generator(args.backend)
+    if generator:
+        generator.initialize_output_files(args)
+
+    if not generator:
+        raise ValueError(f"Unsupported backend: {args.backend}")
+    
+    # If prompt reduction is enabled, use weak model to identify relevant code sections
+    if args.use_prompt_reduction:
+        print(f"Applying prompt reduction for {instance['instance_id']}")
+        formatted_files = reduce_prompt_context(generator, instance, formatted_files, args, file_lock)
+    
     if args.use_raw_trajectories and trajectory:
         prompt = repair_prompt.format(
             problem_statement=instance["problem_description"],
@@ -352,13 +220,6 @@ def process_instance(instance, args, file_lock):
             problem_statement=instance["problem_description"],
             retrieval=formatted_files,
         )
-
-    generator = get_generator(args.backend)
-    if generator:
-        generator.initialize_output_files(args)
-
-    if not generator:
-        raise ValueError(f"Unsupported backend: {args.backend}")
 
     strong_model_attempt = None
     
@@ -593,6 +454,16 @@ def parse_arguments():
         "--use_strong_first",
         action="store_true",
         help="Use the strong model for the first attempt, then fall back to the weak model",
+    )
+    parser.add_argument(
+        "--use_prompt_reduction",
+        action="store_true",
+        help="Use weak model to identify relevant code sections to reduce context for strong model",
+    )
+    parser.add_argument(
+        "--weak_model",
+        type=str,
+        help="Weak model to use for prompt reduction (if different from main model)",
     )
     parser.add_argument(
         "--eval_path",

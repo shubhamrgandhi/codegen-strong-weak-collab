@@ -7,12 +7,12 @@ from pathlib import Path
 import subprocess
 from agentless_lite.util.backends import get_generator
 from agentless_lite.util.repair import num_tokens_from_messages
-from agentless_lite.prompts import *
+from agentless_lite.util.prompts import *
 
 # Define base directory for storing repos and insights
-BASE_DIR = Path("../data/swebench_repos")
-INSIGHTS_DIR = Path("../data/repo_insights")
-FAQ_DIR = Path("../data/repo_faqs")
+BASE_DIR = Path("data/swebench_repos")
+INSIGHTS_DIR = Path("data/repo_insights")
+FAQ_DIR = Path("data/repo_faqs")
 
 
 
@@ -255,11 +255,12 @@ def process_repository(repo_name, repo_path, args, file_lock):
     
     # Save content to repository-specific file
     output_path = os.path.join(output_dir, f"{repo_name}_{instance_id_prefix}.json")
+    field_name = 'repo_faq' if args.faq else 'insights'
     repo_output = {
         "repo_name": repo_name,
         "structure": formatted_structure,  # Store the full formatted structure
         "readme": readme_content,
-        "content": generated_content
+        field_name: generated_content
     }
     
     with file_lock:
@@ -390,7 +391,7 @@ def parse_arguments():
     parser.add_argument(
         "--max_completion_tokens",
         type=int,
-        default=4000,
+        default=10000,
         help="Maximum number of tokens allowed in the completion response",
     )
     parser.add_argument(
@@ -433,7 +434,7 @@ def parse_arguments():
     parser.add_argument(
         "--output_folder",
         type=str,
-        default="../data/repo_output",
+        default="data/repo_output",
         help="Folder to save the output files",
     )
     parser.add_argument(

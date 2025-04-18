@@ -1,7 +1,7 @@
 import json
 import argparse
 
-def calculate_average_attempts(jsonl_path, expected_count=300):
+def calculate_average_attempts(jsonl_path, expected_count=300, strong_weak=False):
     """
     Calculate the average number of attempts from entries in a JSONL file.
     For each missing entry (if total entries < expected_count), add 10 to the total attempts.
@@ -68,7 +68,10 @@ def calculate_average_attempts(jsonl_path, expected_count=300):
             weak_attempts += missing_entries * 5
         
         # Always divide by the expected count
-        return strong_attempts / expected_count, weak_attempts / expected_count
+        if strong_weak:
+            return strong_attempts / expected_count, weak_attempts / expected_count
+        else:
+            return total_attempts / expected_count
     
     except FileNotFoundError:
         print(f"Error: File '{jsonl_path}' not found")
@@ -77,18 +80,20 @@ def calculate_average_attempts(jsonl_path, expected_count=300):
 def main():
     parser = argparse.ArgumentParser(description='Calculate average attempts from a JSONL file')
     parser.add_argument('--jsonl_path', type=str, help='Path to the JSONL file')
+    parser.add_argument('--strong_weak', action="store_true", help='Get strong-weak attempts')
     args = parser.parse_args()
     
-    # avg_attempts = calculate_average_attempts(args.jsonl_path)
+    if args.strong_weak:
+        avg_strong_attempts, avg_weak_attempts = calculate_average_attempts(args.jsonl_path)    
+        if avg_strong_attempts is not None and avg_weak_attempts is not None:
+            print(f"Average strong attempts: {avg_strong_attempts:.2f}")
+            print(f"Average weak attempts: {avg_weak_attempts:.2f}")
+    else:
+        avg_attempts = calculate_average_attempts(args.jsonl_path)
+        if avg_attempts is not None:
+            print(f"Average attempts: {avg_attempts:.2f}")
     
-    # if avg_attempts is not None:
-    #     print(f"Average attempts: {avg_attempts:.2f}")
     
-    avg_strong_attempts, avg_weak_attempts = calculate_average_attempts(args.jsonl_path)
-    
-    if avg_strong_attempts is not None and avg_weak_attempts is not None:
-        print(f"Average strong attempts: {avg_strong_attempts:.2f}")
-        print(f"Average weak attempts: {avg_weak_attempts:.2f}")
 
 if __name__ == "__main__":
     main()

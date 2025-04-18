@@ -144,32 +144,35 @@ def load_trajectory(instance_id, trajectory_dir):
         return None
 
 
-def load_plan(instance_id, plans_path, file_lock=None):
+def load_plan_or_instance_faq(instance_id, path, args, file_lock=None):
     """
     Load a plan from a JSONL file if it exists.
-    Each line in the JSONL file should contain 'instance_id' and 'plan' fields.
+    Each line in the JSONL file should contain 'instance_id' and 'plan' / 'instance_faq' fields.
     Thread-safe if a file_lock is provided.
     
     Args:
         instance_id (str): The ID of the instance to find a plan for
-        plans_path (str): Path to the JSONL file containing plans
+        path (str): Path to the JSONL file containing plans
         file_lock (threading.Lock, optional): Lock for thread-safe file access
     
     Returns:
         str or None: The plan for the specified instance_id if found, None otherwise
     """
-    if not os.path.exists(plans_path):
-        print(f"No plans file found at {plans_path}")
+
+    field_name = 'plan' if args.use_plans else 'instance_faq'
+
+    if not os.path.exists(path):
+        print(f"No {field_name} file found at {path}")
         return None
     
     try:
         # Use a context manager for the lock if provided
         with file_lock if file_lock else nullcontext():
-            with open(plans_path, 'r', encoding='utf-8') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 for line in f:
                     plan_data = json.loads(line.strip())
-                    if plan_data.get('instance_id') == instance_id and 'plan' in plan_data:
-                        return plan_data['plan']
+                    if plan_data.get('instance_id') == instance_id and field_name in plan_data:
+                        return plan_data[field_name]
             
             print(f"No plan found for instance ID: {instance_id}")
             return None
@@ -179,13 +182,13 @@ def load_plan(instance_id, plans_path, file_lock=None):
         return None
 
 
-def load_info(instance_id, info_dir):
+def load_info_or_repo_faq(instance_id, dir, args):
     """
     Load repository insights for the given instance ID.
     
     Args:
         instance_id (str): The instance ID in the format {something}__{repo_name}-{issue_id}
-        info_dir (str): Directory containing repository insight JSON files
+        dir (str): Directory containing repository insight / FAQ JSON files
     
     Returns:
         str or None: The repository insights if found, None otherwise
@@ -193,6 +196,10 @@ def load_info(instance_id, info_dir):
     try:
         # Extract repo name from instance_id
         # Format is typically {something}__{repo_name}-{issue_id}
+        if args.use_repo_faq:
+            field = 'repo_faq'
+        else:
+            field = 'insights'
         parts = instance_id.split('__')
         if len(parts) < 2:
             print(f"Invalid instance ID format: {instance_id}")
@@ -202,11 +209,11 @@ def load_info(instance_id, info_dir):
         repo_identifier = parts[1]
         repo_name = repo_identifier.split('-')[0]
         
-        # Construct path to the insights file
-        insights_path = os.path.join(info_dir, f"{repo_name}_insights.json")
+        # Construct path to the insights / FAQ file
+        insights_path = os.path.join(dir, f"{repo_name}_{field}.json")
         
         if not os.path.exists(insights_path):
-            print(f"No insights file found at {insights_path}")
+            print(f"No {field} file found at {insights_path}")
             return None
         
         # Load the insights file
@@ -214,14 +221,14 @@ def load_info(instance_id, info_dir):
             insights_data = json.load(f)
         
         # Extract the 'insights' field which contains high-level repository information
-        if 'insights' in insights_data:
-            return insights_data['insights']
+        if field in insights_data:
+            return insights_data[field]
         else:
-            print(f"No 'insights' field found in {insights_path}")
+            print(f"No '{field}' field found in {insights_path}")
             return None
             
     except Exception as e:
-        print(f"Error loading insights for {instance_id}: {e}")
+        print(f"Error loading {field} for {instance_id}: {e}")
         return None
 
         

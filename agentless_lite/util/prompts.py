@@ -233,3 +233,83 @@ Please output only the file paths and relevant code sections in this format:
 Only include the minimum necessary code with sufficient context to understand and fix the issue. Ensure that the code is complete and valid Python code.
 Don't include any explanations or reasoning - just the file paths and code sections.
 """
+
+REPO_INSIGHT_PROMPT = """I need you to provide high-level insights about the following repository: {repo_name}
+
+Based on the repository structure and README below, generate a comprehensive overview of this repository that could help guide a language model in solving technical issues.
+
+Repository Structure:
+{repo_structure}
+
+README Content:
+{readme_content}
+
+Please provide the following insights. For each point, provide concrete details and specific examples from the codebase - high-level doesn't mean vague, it means providing a clear architectural overview with specific names, patterns, and implementations:
+
+1. Core Purpose and Functionality: 
+    - What specific problem does this repository solve?
+    - What are its primary features and capabilities?
+
+2. Main Architectural Patterns:
+    - Identify concrete architectural patterns used in this codebase
+    - EXAMPLE: Plugin based architecture, layered architecture, etc
+
+3. Module Organization:
+    - Name the specific key modules and their exact responsibilities
+    - EXAMPLE: I/O module, error-handling module, etc
+
+4. Key Abstractions and Concepts:
+    - List the actual fundamental abstractions used in the codebase
+    - EXAMPLE: Quantity class for numerical values, Logger class for logging, etc
+
+5. Design Patterns:
+    - Identify specific recurring code patterns with examples
+    - EXAMPLE: Factory methods, Decorators, etc
+
+6. Error Handling Approaches:
+    - Describe precise error handling mechanisms used in the codebase
+    - EXAMPLE: Custom exception hierarchies, warnings, etc
+
+Focus on providing actionable architectural insights that would be valuable for understanding the repository's design philosophy and core abstractions. Your response should contain specific implementation details that would help someone understand how to navigate, extend, and debug the codebase to solve issues.
+"""
+
+
+REPO_FAQ_PROMPT = """I need you to generate a comprehensive FAQ about the repository: {repo_name}
+
+Based on the repository structure and README below, create a detailed set of technical FAQs that would help a developer solve issues in this codebase. These FAQs should serve as guidance for someone who is trying to resolve bugs or implement new features.
+
+Repository Structure:
+{repo_structure}
+
+README Content:
+{readme_content}
+
+Please generate 10-15 frequently asked questions with detailed answers about:
+
+1. Code Organization and Architecture:
+   - How is the codebase structured?
+   - What are the key modules and their responsibilities?
+   - How do the different components interact?
+
+2. Common Patterns and Conventions:
+   - What design patterns are commonly used?
+   - What are the naming conventions and code style expectations?
+   - Are there specific patterns for implementing new features?
+
+3. Typical Debugging Approaches:
+   - What are common error patterns and their solutions?
+   - How to debug specific types of issues in this codebase?
+   - What are common pitfalls when modifying this code?
+
+4. Implementation Details:
+   - How are core abstractions implemented?
+   - What are the key algorithms or data structures used?
+   - How does the error handling system work?
+
+5. Testing Considerations:
+   - How is testing typically done in this codebase?
+   - What should be considered when writing tests?
+   - Are there common test fixtures or utilities?
+
+For each question, provide detailed, specific answers with concrete examples from the codebase when possible. Focus on information that would be most valuable to someone trying to fix bugs or implement new features. The FAQs should reflect the actual patterns and practices used in this specific repository, not generic software development advice.
+"""

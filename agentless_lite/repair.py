@@ -221,6 +221,59 @@ def process_instance(instance, args, file_lock):
             retrieval=formatted_files,
         )
 
+    # Fallback setting implementation
+    if args.use_fallback:
+        print(f"Using fallback setting for {instance['instance_id']}: first weak model with 5 iterations, then strong model if needed")
+        
+        # Create a deep copy of args for the weak model
+        weak_args = deepcopy(args)
+        # Keep the default model (weak model)
+        # Set max_retries to 5 for the weak model
+        weak_args.max_retries = 5
+        
+        # Try with weak model first
+        print(f"Attempting with weak model {args.model} for {instance['instance_id']} (max 5 iterations)")
+        git_diff = generator.generate_with_retries(
+            instance,
+            prompt,
+            weak_args,
+            file_lock,
+            args.output_file,
+            instance.get("image_assets", None)
+        )
+        
+        # If weak model succeeded, return
+        if git_diff:
+            print(f"Weak model successfully generated a valid patch for {instance['instance_id']}")
+            return
+        
+        # Otherwise, fall back to strong model
+        print(f"Weak model failed after 5 iterations. Falling back to strong model {args.strong_model} for {instance['instance_id']}")
+        
+        # Create a deep copy of args for the strong model
+        strong_args = deepcopy(args)
+        # Use the strong model
+        strong_args.model = args.strong_model
+        # Set max_retries to 1 for the strong model
+        strong_args.max_retries = 1
+        
+        # Generate with the strong model
+        git_diff = generator.generate_with_retries(
+            instance,
+            prompt,
+            strong_args,
+            file_lock,
+            args.output_file,
+            instance.get("image_assets", None)
+        )
+        
+        if not git_diff:
+            print(f"Both weak and strong models failed for {instance['instance_id']}")
+        else:
+            print(f"Strong model successfully generated a valid patch for {instance['instance_id']}")
+        
+        return
+
     strong_model_attempt = None
     
     # Use the strong model first if enabled
@@ -454,6 +507,11 @@ def parse_arguments():
         "--use_strong_first",
         action="store_true",
         help="Use the strong model for the first attempt, then fall back to the weak model",
+    )
+    parser.add_argument(
+        "--use_fallback",
+        action="store_true",
+        help="Use the weak model first (5 iterations), then fall back to the strong model if needed (1 iteration)",
     )
     parser.add_argument(
         "--use_prompt_reduction",

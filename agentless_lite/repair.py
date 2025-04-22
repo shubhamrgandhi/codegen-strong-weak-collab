@@ -9,80 +9,17 @@ import weave
 
 from agentless_lite.util.backends import get_generator
 from agentless_lite.util.repair import num_tokens_from_messages
-from agentless_lite.util.loading import *
+from agentless_lite.util.methods import *
 from agentless_lite.util.prompts import *
 
 from transformers import AutoTokenizer, AutoModel
 import torch
 import numpy as np
 
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
-
 import traceback
 import random
 random.seed(42)
 
-def reduce_prompt_context(generator, instance, formatted_files, args, file_lock):
-    """
-    Use the weak model to identify relevant code sections and reduce the prompt context.
-    
-    Args:
-        instance: The current instance being processed
-        formatted_files: The full formatted file content
-        args: Command line arguments
-        file_lock: Thread lock for file operations
-        
-    Returns:
-        Reduced context containing only relevant code sections
-    """
-    # Create a generator for the weak model
-    # generator = get_generator(args.backend)
-    
-    # Use a minimal prompt to ask the weak model to identify relevant code sections
-    reduction_prompt = REDUCTION_PROMPT
-    
-    # Format the reduction prompt
-    prompt = reduction_prompt.format(
-        problem_statement=instance["problem_description"],
-        retrieval=formatted_files,
-    )
-    
-    # Create a temporary copy of args for the weak model
-    weak_args = deepcopy(args)
-    weak_args.model = args.weak_model if hasattr(args, 'weak_model') else args.model
-    weak_args.max_retries = 1  # Only try once for the reduction
-    weak_args.temp = 0  # Use temperature 0 for more deterministic results
-    
-    # Generate the reduced context using the weak model
-    print(f"Generating reduced context for {instance['instance_id']} using {weak_args.model}")
-    
-    # Call the model to identify relevant code sections
-    response, _ = generator.generate(
-        instance,
-        prompt,
-        weak_args,
-        file_lock,
-        args.output_file,
-        defer_writing=True,
-        image_assets=instance.get("image_assets", None)
-    )
-    
-    if not response:
-        print(f"Warning: Failed to reduce context for {instance['instance_id']}, using full context instead")
-        return formatted_files
-        
-    # Extract the code sections from the response
-    reduced_context = response
-    
-    # # Calculate token savings
-    # original_tokens = num_tokens_from_messages(formatted_files)
-    # reduced_tokens = num_tokens_from_messages(reduced_context)
-    # savings_percentage = ((original_tokens - reduced_tokens) / original_tokens) * 100 if original_tokens > 0 else 0
-    
-    # print(f"Context reduction for {instance['instance_id']}: {original_tokens} → {reduced_tokens} tokens ({savings_percentage:.2f}% reduction)")
-    
-    return reduced_context
 
 def process_instance(instance, args, file_lock):
 
@@ -258,6 +195,34 @@ def process_instance(instance, args, file_lock):
             problem_statement=instance["problem_description"],
             retrieval=formatted_files,
         )
+
+    if args.use_router:
+        use_strong_model = route_instance(generator, instance, formatted_files, args, file_lock)
+        
+        if use_strong_model:
+            print(f"Using strong model for {instance['instance_id']} based on router decision")
+            # Create a deep copy of args for the strong model
+            strong_args = deepcopy(args)
+            # Use the strong model
+            strong_args.model = args.strong_model
+            
+            # Generate with the strong model (keep the original max_retries)
+            git_diff = generator.generate_with_retries(
+                instance,
+                prompt,
+                strong_args,
+                file_lock,
+                args.output_file,
+                instance.get("image_assets", None)
+            )
+            
+            if not git_diff:
+                print(f"Strong model failed to generate valid response for {instance['instance_id']} after {strong_args.max_retries} attempts")
+            else:
+                print(f"Strong model successfully generated a valid patch for {instance['instance_id']}")
+            
+            # Return immediately after using the strong model, regardless of result
+            return
 
     # Fallback setting implementation
     if args.use_fallback:
@@ -582,6 +547,17 @@ def parse_arguments():
         "--weak_model",
         type=str,
         help="Weak model to use for prompt reduction (if different from main model)",
+    )
+    parser.add_argument(
+        "--use_router",
+        action="store_true",
+        help="Use a router to determine whether to use the strong or weak model for each instance",
+    )
+    parser.add_argument(
+        "--router_model",
+        type=str,
+        default=None,
+        help="Model to use as router (defaults to the main model if not specified)",
     )
     parser.add_argument(
         "--eval_path",

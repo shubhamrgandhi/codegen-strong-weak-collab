@@ -399,3 +399,106 @@ Please generate 15-20 frequently asked questions with detailed answers about:
 
 For each question, provide detailed, specific answers with concrete examples from the codebase when possible. Focus on information that would be most valuable to someone trying to fix bugs or implement new features. The FAQs should reflect the actual patterns and practices used in this specific repository, not generic software development advice.
 """
+
+
+ROUTER_PROMPT = """
+You are an expert software engineer tasked with analyzing software issues to determine the most efficient debugging approach.
+
+Please analyze the following issue and codebase:
+
+Issue description:
+--- BEGIN ISSUE ---
+{problem_statement}
+--- END ISSUE ---
+
+Relevant code:
+--- BEGIN CODE ---
+{retrieval}
+--- END CODE ---
+
+Your goal is to classify this issue as either SIMPLE or COMPLEX.
+
+SIMPLE issues typically have these characteristics:
+- Clear localization of the bug in the code
+- Straightforward cause-effect relationship
+- Relatively isolated impact (limited to one function or module)
+- Common programming patterns or errors
+- Solution likely follows established best practices
+
+COMPLEX issues typically have these characteristics:
+- Multiple components involved in the bug
+- Subtle interactions between different parts of the codebase
+- Requires deep reasoning about codebase architecture
+- Edge cases that are difficult to identify
+- May require creative or non-obvious solutions
+
+Based solely on your analysis of the issue and code, respond with ONLY one of these two options:
+- SIMPLE
+- COMPLEX
+
+Provide no explanation, reasoning, or additional text - just output the single classification word.
+"""
+
+
+
+USC_SELECTION_PROMPT = """I have generated the following {n_samples} potential solutions to fix this issue:
+
+# Problem Statement
+{problem_statement}
+
+# Relevant Files
+{formatted_files}
+
+# Generated Solutions
+{patches}
+
+Based on the above solutions, select the most consistent and correct solution. Analyze the similarities and differences between the solutions, and select the one that best addresses the problem statement while making minimal and precise changes. 
+
+Your selection should be based on:
+1. Correctness (does it solve the issue described in the problem statement)
+2. Consensus (do multiple solutions agree on a similar approach)
+3. Simplicity (does it make minimal necessary changes)
+
+Return your selection as "SELECTED_PATCH: X" where X is the number of the chosen patch (1 to {n_samples}) and then explain your reasoning."""
+
+
+
+SELF_REFINE_PROMPT = """
+We are currently solving the following issue within our repository. Here is the issue text:
+--- BEGIN ISSUE ---
+{problem_statement}
+--- END ISSUE ---
+
+Below are some code segments, each from a relevant file. One or more of these files may contain bugs:
+--- BEGIN FILE ---
+{retrieval}
+--- END FILE ---
+
+{previous_attempts}
+
+Please first localize the bug based on the issue statement, and then generate *SEARCH/REPLACE* edits to fix the issue.
+Analyze the previous attempts if provided, identify any problems or shortcomings, and refine the solution.
+
+Every *SEARCH/REPLACE* edit must use this format:
+1. The file path
+2. The start of search block: <<<<<<< SEARCH
+3. A contiguous chunk of lines to search for in the existing source code
+4. The dividing line: =======
+5. The lines to replace into the source code
+6. The end of the replace block: >>>>>>> REPLACE
+
+Here is an example:
+
+```python
+### mathweb/flask/app.py
+<<<<<<< SEARCH
+from flask import Flask
+=======
+import math
+from flask import Flask
+>>>>>>> REPLACE
+```
+
+Please note that the *SEARCH/REPLACE* edit REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
+Wrap the *SEARCH/REPLACE* edit in blocks ```python...```.
+"""

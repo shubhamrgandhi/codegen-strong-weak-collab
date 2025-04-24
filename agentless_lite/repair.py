@@ -9,80 +9,17 @@ import weave
 
 from agentless_lite.util.backends import get_generator
 from agentless_lite.util.repair import num_tokens_from_messages
-from agentless_lite.util.loading import *
+from agentless_lite.util.methods import *
 from agentless_lite.util.prompts import *
 
 from transformers import AutoTokenizer, AutoModel
 import torch
 import numpy as np
 
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
-
 import traceback
 import random
 random.seed(42)
 
-def reduce_prompt_context(generator, instance, formatted_files, args, file_lock):
-    """
-    Use the weak model to identify relevant code sections and reduce the prompt context.
-    
-    Args:
-        instance: The current instance being processed
-        formatted_files: The full formatted file content
-        args: Command line arguments
-        file_lock: Thread lock for file operations
-        
-    Returns:
-        Reduced context containing only relevant code sections
-    """
-    # Create a generator for the weak model
-    # generator = get_generator(args.backend)
-    
-    # Use a minimal prompt to ask the weak model to identify relevant code sections
-    reduction_prompt = REDUCTION_PROMPT
-    
-    # Format the reduction prompt
-    prompt = reduction_prompt.format(
-        problem_statement=instance["problem_description"],
-        retrieval=formatted_files,
-    )
-    
-    # Create a temporary copy of args for the weak model
-    weak_args = deepcopy(args)
-    weak_args.model = args.weak_model if hasattr(args, 'weak_model') else args.model
-    weak_args.max_retries = 1  # Only try once for the reduction
-    weak_args.temp = 0  # Use temperature 0 for more deterministic results
-    
-    # Generate the reduced context using the weak model
-    print(f"Generating reduced context for {instance['instance_id']} using {weak_args.model}")
-    
-    # Call the model to identify relevant code sections
-    response, _ = generator.generate(
-        instance,
-        prompt,
-        weak_args,
-        file_lock,
-        args.output_file,
-        defer_writing=True,
-        image_assets=instance.get("image_assets", None)
-    )
-    
-    if not response:
-        print(f"Warning: Failed to reduce context for {instance['instance_id']}, using full context instead")
-        return formatted_files
-        
-    # Extract the code sections from the response
-    reduced_context = response
-    
-    # # Calculate token savings
-    # original_tokens = num_tokens_from_messages(formatted_files)
-    # reduced_tokens = num_tokens_from_messages(reduced_context)
-    # savings_percentage = ((original_tokens - reduced_tokens) / original_tokens) * 100 if original_tokens > 0 else 0
-    
-    # print(f"Context reduction for {instance['instance_id']}: {original_tokens} → {reduced_tokens} tokens ({savings_percentage:.2f}% reduction)")
-    
-    return reduced_context
 
 def process_instance(instance, args, file_lock):
 
@@ -103,16 +40,30 @@ def process_instance(instance, args, file_lock):
             repair_prompt = AGENTLESS_PROMPT
     elif args.use_plans:
         # Load the trajectory for this instance
-        plan = load_plan(instance['instance_id'], args.plans_path, file_lock)
+        plan = load_plan_or_instance_faq(instance['instance_id'], args.plans_path, args, file_lock)
         if plan:
             repair_prompt = AGENTLESS_PROMPT_WITH_PLAN
         else:
             repair_prompt = AGENTLESS_PROMPT
+    elif args.use_instance_faq:
+        # Load the trajectory for this instance
+        instance_faq = load_plan_or_instance_faq(instance['instance_id'], args.instance_faq_path, args, file_lock)
+        if instance_faq:
+            repair_prompt = AGENTLESS_PROMPT_WITH_INSTANCE_FAQ
+        else:
+            repair_prompt = AGENTLESS_PROMPT
     elif args.use_info:
         # Load the trajectory for this instance
-        info = load_info(instance['instance_id'], args.info_dir)
+        info = load_info_or_repo_faq(instance['instance_id'], args.info_dir, args)
         if info:
             repair_prompt = AGENTLESS_PROMPT_WITH_INFO
+        else:
+            repair_prompt = AGENTLESS_PROMPT
+    elif args.use_repo_faq:
+        # Load the trajectory for this instance
+        repo_faq = load_info_or_repo_faq(instance['instance_id'], args.repo_faq_dir, args)
+        if repo_faq:
+            repair_prompt = AGENTLESS_PROMPT_WITH_REPO_FAQ
         else:
             repair_prompt = AGENTLESS_PROMPT
     elif args.use_fs:
@@ -150,11 +101,23 @@ def process_instance(instance, args, file_lock):
                     retrieval=formatted_files + formatted_file,
                     plan=plan
                 )
+            elif args.use_instance_faq and instance_faq:
+                expected_prompt = repair_prompt.format(
+                    problem_statement=instance["problem_description"],
+                    retrieval=formatted_files + formatted_file,
+                    instance_faq=instance_faq
+                )
             elif args.use_info and info:
                 expected_prompt = repair_prompt.format(
                     problem_statement=instance["problem_description"],
                     retrieval=formatted_files + formatted_file,
                     info=info
+                )
+            elif args.use_repo_faq and repo_faq:
+                expected_prompt = repair_prompt.format(
+                    problem_statement=instance["problem_description"],
+                    retrieval=formatted_files + formatted_file,
+                    repo_faq=repo_faq
                 )
             elif args.use_fs and few_shot_examples:
                 expected_prompt = repair_prompt.format(
@@ -201,11 +164,23 @@ def process_instance(instance, args, file_lock):
             retrieval=formatted_files,
             plan=plan,
         )
+    elif args.use_instance_faq and instance_faq:
+        prompt = repair_prompt.format(
+            problem_statement=instance["problem_description"],
+            retrieval=formatted_files,
+            instance_faq=instance_faq,
+        )
     elif args.use_info and info:
         prompt = repair_prompt.format(
             problem_statement=instance["problem_description"],
             retrieval=formatted_files,
             info=info,
+        )
+    elif args.use_repo_faq and repo_faq:
+        prompt = repair_prompt.format(
+            problem_statement=instance["problem_description"],
+            retrieval=formatted_files,
+            repo_faq=repo_faq,
         )
     elif args.use_fs and few_shot_examples:
         prompt = repair_prompt.format(
@@ -220,6 +195,87 @@ def process_instance(instance, args, file_lock):
             problem_statement=instance["problem_description"],
             retrieval=formatted_files,
         )
+
+    if args.use_router:
+        use_strong_model = route_instance(generator, instance, formatted_files, args, file_lock)
+        
+        if use_strong_model:
+            print(f"Using strong model for {instance['instance_id']} based on router decision")
+            # Create a deep copy of args for the strong model
+            strong_args = deepcopy(args)
+            # Use the strong model
+            strong_args.model = args.strong_model
+            
+            # Generate with the strong model (keep the original max_retries)
+            git_diff = generator.generate_with_retries(
+                instance,
+                prompt,
+                strong_args,
+                file_lock,
+                args.output_file,
+                instance.get("image_assets", None)
+            )
+            
+            if not git_diff:
+                print(f"Strong model failed to generate valid response for {instance['instance_id']} after {strong_args.max_retries} attempts")
+            else:
+                print(f"Strong model successfully generated a valid patch for {instance['instance_id']}")
+            
+            # Return immediately after using the strong model, regardless of result
+            return
+
+    # Fallback setting implementation
+    if args.use_fallback:
+        print(f"Using fallback setting for {instance['instance_id']}: first weak model with 5 iterations, then strong model if needed")
+        
+        # Create a deep copy of args for the weak model
+        weak_args = deepcopy(args)
+        # Keep the default model (weak model)
+        # Set max_retries to 5 for the weak model
+        weak_args.max_retries = 5
+        
+        # Try with weak model first
+        print(f"Attempting with weak model {args.model} for {instance['instance_id']} (max 5 iterations)")
+        git_diff = generator.generate_with_retries(
+            instance,
+            prompt,
+            weak_args,
+            file_lock,
+            args.output_file,
+            instance.get("image_assets", None)
+        )
+        
+        # If weak model succeeded, return
+        if git_diff:
+            print(f"Weak model successfully generated a valid patch for {instance['instance_id']}")
+            return
+        
+        # Otherwise, fall back to strong model
+        print(f"Weak model failed after 5 iterations. Falling back to strong model {args.strong_model} for {instance['instance_id']}")
+        
+        # Create a deep copy of args for the strong model
+        strong_args = deepcopy(args)
+        # Use the strong model
+        strong_args.model = args.strong_model
+        # Set max_retries to 1 for the strong model
+        strong_args.max_retries = 1
+        
+        # Generate with the strong model
+        git_diff = generator.generate_with_retries(
+            instance,
+            prompt,
+            strong_args,
+            file_lock,
+            args.output_file,
+            instance.get("image_assets", None)
+        )
+        
+        if not git_diff:
+            print(f"Both weak and strong models failed for {instance['instance_id']}")
+        else:
+            print(f"Strong model successfully generated a valid patch for {instance['instance_id']}")
+        
+        return
 
     strong_model_attempt = None
     
@@ -416,6 +472,17 @@ def parse_arguments():
         help="JSONL file containing plans",
     )
     parser.add_argument(
+        "--use_instance_faq",
+        action="store_true",
+        help="Have a weak language model use instance FAQs generated by a strong model",
+    )
+    parser.add_argument(
+        "--instance_faq_path",
+        type=str,
+        default="results/generate_instance_faq_o3-mini-2025-01-31/all_instance_faqs.jsonl",
+        help="JSONL file containing instance FAQs",
+    )
+    parser.add_argument(
         "--use_info",
         action="store_true",
         help="Have a weak language model use a high-level repository-specific generated by a strong model",
@@ -425,6 +492,17 @@ def parse_arguments():
         type=str,
         default="data/repo_insights",
         help="Directory for high-level repository-specific information, should contain <repo_name>_insights.json files.",
+    )
+    parser.add_argument(
+        "--use_repo_faq",
+        action="store_true",
+        help="Have a weak language model use repository-specific FAQ generated by a strong model",
+    )
+    parser.add_argument(
+        "--repo_faq_dir",
+        type=str,
+        default="data/repo_faqs",
+        help="Directory for repository-specific FAQ, should contain <repo_name>_repo_faq.json files.",
     )
     parser.add_argument(
         "--use_fs",
@@ -456,6 +534,11 @@ def parse_arguments():
         help="Use the strong model for the first attempt, then fall back to the weak model",
     )
     parser.add_argument(
+        "--use_fallback",
+        action="store_true",
+        help="Use the weak model first (5 iterations), then fall back to the strong model if needed (1 iteration)",
+    )
+    parser.add_argument(
         "--use_prompt_reduction",
         action="store_true",
         help="Use weak model to identify relevant code sections to reduce context for strong model",
@@ -464,6 +547,17 @@ def parse_arguments():
         "--weak_model",
         type=str,
         help="Weak model to use for prompt reduction (if different from main model)",
+    )
+    parser.add_argument(
+        "--use_router",
+        action="store_true",
+        help="Use a router to determine whether to use the strong or weak model for each instance",
+    )
+    parser.add_argument(
+        "--router_model",
+        type=str,
+        default=None,
+        help="Model to use as router (defaults to the main model if not specified)",
     )
     parser.add_argument(
         "--eval_path",

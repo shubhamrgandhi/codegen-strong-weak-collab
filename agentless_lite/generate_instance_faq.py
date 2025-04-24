@@ -20,16 +20,36 @@ Below are some code segments, each from a relevant file. One or more of these fi
 {retrieval}
 --- END FILE ---
 
-Please analyze the issue and provide a detailed plan to fix it. Do NOT generate any code patches or specific edits.
+Please create a detailed FAQ (Frequently Asked Questions) document that would help a junior developer understand and fix this specific issue. Do NOT generate any code patches or specific edits.
 
-Your plan should include:
+Your FAQ should include 7-10 questions and answers about:
 
-1. Bug localization: Identify which file(s) contain the bug based on the issue statement
-2. Root cause analysis: Explain why the bug is occurring
-3. Solution approach: Describe conceptually how to fix the issue
-4. Implementation strategy: Outline the logical steps needed to implement the solution
+1. Issue Understanding:
+   - What is the exact problem described in the issue?
+   - What are the expected vs. actual behaviors?
+   - What conditions trigger this issue?
 
-Keep your analysis focused on the problem-solving approach rather than specific code changes.
+2. Codebase Navigation:
+   - Which specific files and functions are most relevant to this issue?
+   - What are the key components involved in this functionality?
+   - How do these components interact?
+
+3. Technical Analysis:
+   - What are the potential root causes of this issue?
+   - What code patterns or anti-patterns might be contributing to the bug?
+   - What specific edge cases might not be handled correctly?
+
+4. Implementation Guidance:
+   - What approaches could be used to fix this issue?
+   - What implementation pitfalls should be avoided?
+   - How should the solution be tested?
+
+5. Codebase Specifics:
+   - What patterns or conventions does this codebase use that are relevant to the fix?
+   - What existing helper functions or utilities could be leveraged?
+   - What dependencies or side effects need to be considered?
+
+Make your questions and answers detailed, specific to this issue, and include concrete references to the code when possible. Avoid generic programming advice - focus on information that directly helps solve this specific issue.
 """
 
 def process_instance(instance, args, file_lock):
@@ -78,6 +98,7 @@ def process_instance(instance, args, file_lock):
         file_lock,
         args.output_file,
         instance.get("image_assets", None),
+        field_name="instance_faq",
     )
 
 
@@ -102,7 +123,7 @@ def batch(args):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Generate high level plan for solving issue for the retrieved code"
+        description="Generate instance level FAQs for solving issue for the retrieved code"
     )
     parser.add_argument(
         "--loc_file",
@@ -113,7 +134,7 @@ def parse_arguments():
     parser.add_argument(
         "--output_file",
         type=str,
-        default="all_plans.jsonl",
+        default="all_instance_faqs.jsonl",
         help="Path to save the generated predictions",
     )
     parser.add_argument(

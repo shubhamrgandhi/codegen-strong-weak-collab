@@ -484,6 +484,7 @@ class OpenAIGenerator(BaseGenerator):
         output_file,
         defer_writing=False,
         image_assets=None,
+        field_name="plan",
     ):
         logs_dir = os.path.join(os.path.dirname(output_file), "logs")
         logger = setup_logging(instance["instance_id"], logs_dir)
@@ -557,10 +558,10 @@ class OpenAIGenerator(BaseGenerator):
         all_usage["temp"].extend([temperature] * (args.max_retries - start_index))
         if args.logprobs and hasattr(completion, "logprobs"):
             all_usage["logprobs"].extend(completion.logprobs)
-
+        
         output_entry = {
             "instance_id": instance["instance_id"],
-            "plan": all_responses[-1],
+            field_name: all_responses[-1],
             "usage": all_usage,
         }
 

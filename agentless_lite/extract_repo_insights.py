@@ -7,49 +7,14 @@ from pathlib import Path
 import subprocess
 from agentless_lite.util.backends import get_generator
 from agentless_lite.util.repair import num_tokens_from_messages
+from agentless_lite.util.prompts import *
 
 # Define base directory for storing repos and insights
-BASE_DIR = Path("../data/swebench_repos")
-INSIGHTS_DIR = Path("../data/repo_insights")
+BASE_DIR = Path("data/swebench_repos")
+INSIGHTS_DIR = Path("data/repo_insights")
+FAQ_DIR = Path("data/repo_faqs")
 
-REPO_INSIGHT_PROMPT = """I need you to provide high-level insights about the following repository: {repo_name}
 
-Based on the repository structure and README below, generate a comprehensive overview of this repository that could help guide a language model in solving technical issues.
-
-Repository Structure:
-{repo_structure}
-
-README Content:
-{readme_content}
-
-Please provide the following insights. For each point, provide concrete details and specific examples from the codebase - high-level doesn't mean vague, it means providing a clear architectural overview with specific names, patterns, and implementations:
-
-1. Core Purpose and Functionality: 
-    - What specific problem does this repository solve?
-    - What are its primary features and capabilities?
-
-2. Main Architectural Patterns:
-    - Identify concrete architectural patterns used in this codebase
-    - EXAMPLE: Plugin based architecture, layered architecture, etc
-
-3. Module Organization:
-    - Name the specific key modules and their exact responsibilities
-    - EXAMPLE: I/O module, error-handling module, etc
-
-4. Key Abstractions and Concepts:
-    - List the actual fundamental abstractions used in the codebase
-    - EXAMPLE: Quantity class for numerical values, Logger class for logging, etc
-
-5. Design Patterns:
-    - Identify specific recurring code patterns with examples
-    - EXAMPLE: Factory methods, Decorators, etc
-
-6. Error Handling Approaches:
-    - Describe precise error handling mechanisms used in the codebase
-    - EXAMPLE: Custom exception hierarchies, warnings, etc
-
-Focus on providing actionable architectural insights that would be valuable for understanding the repository's design philosophy and core abstractions. Your response should contain specific implementation details that would help someone understand how to navigate, extend, and debug the codebase to solve issues.
-"""
 
 def get_repo_structure(repo_path):
     """
@@ -177,7 +142,7 @@ def get_repo_readme(repo_path):
     return "README not found"
 
 def process_repository(repo_name, repo_path, args, file_lock):
-    """Process a repository to generate high-level insights."""
+    """Process a repository to generate high-level insights or FAQs."""
     print(f"Processing repository: {repo_name}")
     
     # Extract repository structure using the new functions (directories only)
@@ -191,12 +156,41 @@ def process_repository(repo_name, repo_path, args, file_lock):
     
     readme_content = get_repo_readme(repo_path)
     
-    # Create the prompt (using the original prompt)
-    prompt = REPO_INSIGHT_PROMPT.format(
-        repo_name=repo_name,
-        repo_structure=formatted_structure,
-        readme_content=readme_content
-    )
+    # Decide whether to generate insights or FAQs
+    if args.info:
+        # Create the prompt for insights
+        prompt = REPO_INSIGHT_PROMPT.format(
+            repo_name=repo_name,
+            repo_structure=formatted_structure,
+            readme_content=readme_content
+        )
+        
+        output_dir = INSIGHTS_DIR
+        instance_id_prefix = "repo_insights"
+        problem_description = f"Generate high-level insights for repository: {repo_name}"
+        
+    elif args.faq:
+        # Create the prompt for FAQs
+        prompt = REPO_FAQ_PROMPT.format(
+            repo_name=repo_name,
+            repo_structure=formatted_structure,
+            readme_content=readme_content
+        )
+        
+        output_dir = FAQ_DIR
+        instance_id_prefix = "repo_faq"
+        problem_description = f"Generate repository-level FAQs for repository: {repo_name}"
+    else:
+        # Default to insights if neither is specified
+        prompt = REPO_INSIGHT_PROMPT.format(
+            repo_name=repo_name,
+            repo_structure=formatted_structure,
+            readme_content=readme_content
+        )
+        
+        output_dir = INSIGHTS_DIR
+        instance_id_prefix = "repo_insights"
+        problem_description = f"Generate high-level insights for repository: {repo_name}"
     
     # Check if the prompt is too long
     if num_tokens_from_messages(prompt) > args.max_input_tokens:
@@ -221,12 +215,19 @@ def process_repository(repo_name, repo_path, args, file_lock):
         # Truncate README if needed
         truncated_readme = readme_content[:2000] + "...[content truncated]" if len(readme_content) > 2000 else readme_content
         
-        # Create a shortened prompt
-        prompt = REPO_INSIGHT_PROMPT.format(
-            repo_name=repo_name,
-            repo_structure=simplified_structure,
-            readme_content=truncated_readme
-        )
+        # Create a shortened prompt based on what we're generating
+        if args.faq:
+            prompt = REPO_FAQ_PROMPT.format(
+                repo_name=repo_name,
+                repo_structure=simplified_structure,
+                readme_content=truncated_readme
+            )
+        else:
+            prompt = REPO_INSIGHT_PROMPT.format(
+                repo_name=repo_name,
+                repo_structure=simplified_structure,
+                readme_content=truncated_readme
+            )
     
     # Get the appropriate generator
     generator = get_generator(args.backend)
@@ -238,12 +239,12 @@ def process_repository(repo_name, repo_path, args, file_lock):
     
     # Create a mock instance to use existing generation code
     instance = {
-        "instance_id": f"repo_insights_{repo_name}",
-        "problem_description": f"Generate high-level insights for repository: {repo_name}"
+        "instance_id": f"{instance_id_prefix}_{repo_name}",
+        "problem_description": problem_description
     }
     
-    # Generate insights
-    insights, output_entry = generator.generate_plan(
+    # Generate content
+    generated_content, output_entry = generator.generate_plan(
         instance,
         prompt,
         args,
@@ -252,20 +253,21 @@ def process_repository(repo_name, repo_path, args, file_lock):
         defer_writing=True
     )
     
-    # Save insights to repository-specific file
-    output_path = os.path.join(INSIGHTS_DIR, f"{repo_name}_insights.json")
+    # Save content to repository-specific file
+    output_path = os.path.join(output_dir, f"{repo_name}_{instance_id_prefix}.json")
+    field_name = 'repo_faq' if args.faq else 'insights'
     repo_output = {
         "repo_name": repo_name,
         "structure": formatted_structure,  # Store the full formatted structure
         "readme": readme_content,
-        "insights": insights
+        field_name: generated_content
     }
     
     with file_lock:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(repo_output, f, indent=2)
     
-    print(f"Insights for {repo_name} saved to {output_path}")
+    print(f"Content for {repo_name} saved to {output_path}")
     return repo_output
 
 
@@ -309,28 +311,33 @@ def clone_repository(repo_full_name):
         print(f"Error cloning {repo_full_name}: {e}")
         return None
 
-def generate_repo_insights(args):
-    """Generate insights for all repositories."""
+def generate_repo_content(args):
+    """Generate insights or FAQs for all repositories."""
     file_lock = threading.Lock()
     
     # Create directories if they don't exist
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     INSIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+    FAQ_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Determine output directory based on what we're generating
+    output_dir = FAQ_DIR if args.faq else INSIGHTS_DIR
+    content_type = "faqs" if args.faq else "insights"
     
     # Get repositories
     repositories = get_repositories_from_swebench()
     if args.repo_name:
         repositories = [repo for repo in repositories if args.repo_name in repo]
     
-    all_insights = {}
+    all_content = {}
     
     if args.num_threads == 1:
         for repo_full_name in repositories:
             repo_name = repo_full_name.split('/')[1]
             repo_path = clone_repository(repo_full_name)
             if repo_path:
-                insights = process_repository(repo_name, repo_path, args, file_lock)
-                all_insights[repo_name] = insights
+                content = process_repository(repo_name, repo_path, args, file_lock)
+                all_content[repo_name] = content
     else:
         # First clone all repositories
         repo_paths = {}
@@ -349,14 +356,14 @@ def generate_repo_insights(args):
             for future in futures:
                 result = future.result()
                 if result:
-                    all_insights[result["repo_name"]] = result
+                    all_content[result["repo_name"]] = result
     
-    # Save combined insights
-    combined_path = INSIGHTS_DIR / "all_repo_insights.json"
+    # Save combined content
+    combined_path = output_dir / f"all_repo_{content_type}.json"
     with open(combined_path, 'w', encoding='utf-8') as f:
-        json.dump(all_insights, f, indent=2)
+        json.dump(all_content, f, indent=2)
     
-    print(f"All repository insights saved to {combined_path}")
+    print(f"All repository {content_type} saved to {combined_path}")
 
 
 def parse_arguments():
@@ -366,8 +373,8 @@ def parse_arguments():
     parser.add_argument(
         "--output_file",
         type=str,
-        default="repo_insights.jsonl",
-        help="Path to save the generated insights",
+        default="repo_output.jsonl",
+        help="Path to save the generated content",
     )
     parser.add_argument(
         "--base_path",
@@ -384,14 +391,14 @@ def parse_arguments():
     parser.add_argument(
         "--max_completion_tokens",
         type=int,
-        default=4000,
+        default=10000,
         help="Maximum number of tokens allowed in the completion response",
     )
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
-        help="Model to use for generating insights",
+        default="o3-mini",
+        help="Model to use for generating insights or FAQs",
     )
     parser.add_argument(
         "--repo_name",
@@ -401,7 +408,7 @@ def parse_arguments():
     parser.add_argument(
         "--num_threads",
         type=int,
-        default=1,
+        default=8,
         help="Number of concurrent threads for processing",
     )
     parser.add_argument(
@@ -427,8 +434,18 @@ def parse_arguments():
     parser.add_argument(
         "--output_folder",
         type=str,
-        default="../data/repo_insights",
+        default="data/repo_output",
         help="Folder to save the output files",
+    )
+    parser.add_argument(
+        "--info",
+        action="store_true",
+        help="Generate high-level repository insights",
+    )
+    parser.add_argument(
+        "--faq",
+        action="store_true",
+        help="Generate repository-level FAQs",
     )
     return parser.parse_args()
 
@@ -442,7 +459,13 @@ if __name__ == "__main__":
         args.output_folder, os.path.basename(args.output_file)
     )
     
-    log_file = os.path.join(args.output_folder, "logs", "repo_insights_parameters.json")
+    # Default to info if neither info nor faq is specified
+    if not args.info and not args.faq:
+        args.info = True
+    
+    # Set content type for log file name
+    content_type = "faq" if args.faq else "insights"
+    log_file = os.path.join(args.output_folder, "logs", f"repo_{content_type}_parameters.json")
     with open(log_file, 'w', encoding='utf-8') as f:
         args_dict = {
             k: v
@@ -451,5 +474,5 @@ if __name__ == "__main__":
         }
         json.dump(args_dict, f, indent=2)
     
-    generate_repo_insights(args)
-    print("Finished generating insights for all repositories.")
+    generate_repo_content(args)
+    print(f"Finished generating {content_type} for all repositories.")

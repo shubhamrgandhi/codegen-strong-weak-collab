@@ -75,10 +75,12 @@ def get_model_pricing(model_name):
     # Define pricing for each model
     pricing = {
         # OpenAI models
+        "o4-mini": {"prompt": 1.1 / 1_000_000, "completion": 4.4 / 1_000_000},
         "o3-mini": {"prompt": 1.1 / 1_000_000, "completion": 4.4 / 1_000_000},
         "gpt-4o-mini": {"prompt": 0.15 / 1_000_000, "completion": 0.6 / 1_000_000},
         # Other models
         "qwen2.5-coder-7b-instruct": {"prompt": 0.05 / 1_000_000, "completion": 0.1 / 1_000_000},
+        "qwen2.5-coder-32b-instruct": {"prompt": 0.07 / 1_000_000, "completion": 0.15 / 1_000_000},
         "deepseek-r1-distill-llama-70b": {"prompt": 0.17 / 1_000_000, "completion": 0.4 / 1_000_000},
         # Default pricing (fallback)
         "default": {"prompt": 1.1 / 1_000_000, "completion": 4.4 / 1_000_000}
@@ -146,7 +148,7 @@ def calculate_cost(tokens_data):
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate costs from log files.")
-    parser.add_argument("--results_dir", default="results/prompt_reduction_o3-mini-2025-01-31",
+    parser.add_argument("--results_dir", default="results/base_qwen-2.5-coder-32b-instruct",
                         help="Directory containing logs subdirectory")
     args = parser.parse_args()
     

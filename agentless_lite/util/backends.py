@@ -610,8 +610,10 @@ class OpenRouterGenerator(BaseGenerator):
             logger.info(
                 f"Making API call {i+1}/{args.max_retries} with temperature {temperature}"
             )
-            if args.model == "qwen-2.5-coder-32b-instruct":
-                model_name = "qwen/qwen-2.5-coder-32b-instruct:free"
+            if args.model == "qwen-2.5-coder-7b-instruct":
+                model_name = "Qwen/Qwen2.5-Coder-7B-Instruct"
+            elif args.model == "qwen-2.5-coder-32b-instruct":
+                model_name = "Qwen/Qwen2.5-Coder-32B-Instruct"
             elif args.model == "deepseek-r1-distill-llama-70b":
                 model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"
             else:
@@ -764,7 +766,7 @@ class VLLMGenerator(BaseGenerator):
                 completion = request_chatgpt_engine(
                     config, 
                     logger, 
-                    base_url="http://localhost:8080/v1",
+                    base_url="http://localhost:8081/v1",
                     timeout=300  # Longer timeout for local inference
                 )
 
@@ -809,10 +811,16 @@ class VLLMGenerator(BaseGenerator):
             temperature = args.temp
             logger.info(f"Making batch API call with temperature {temperature}")
 
-            if args.model == "qwen25coder7b":
+            if args.model == "qwen-2.5-coder-7b-instruct":
                 model_name = "Qwen/Qwen2.5-Coder-7B-Instruct"
-            elif args.model == "DeepSeek-R1-Distill-Qwen-7B":
+            elif args.model == "qwen-2.5-coder-32b-instruct":
+                model_name = "Qwen/Qwen2.5-Coder-32B-Instruct"
+            elif args.model == "deepseek-r1-distill-llama-70b":
+                model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"
+            elif args.model == "deepseek-r1-distill-qwen-7b":
                 model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+            elif args.model == "deepseek-r1-distill-qwen-32b":
+                model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
             else:
                 model_name = args.model
             
@@ -837,7 +845,7 @@ class VLLMGenerator(BaseGenerator):
             completion = request_chatgpt_engine(
                 config, 
                 logger, 
-                base_url="http://localhost:8080/v1",
+                base_url="http://localhost:8081/v1",
                 timeout=300  # Longer timeout for local inference
             )
 

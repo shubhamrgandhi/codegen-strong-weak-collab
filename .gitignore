@@ -12,3 +12,7 @@ voyage_lite
 patch_slides
 commands
 data
+babel_scripts
+*.sbatch
+sbatch_logs
+*_logs

@@ -1,6 +1,7 @@
 import json
 import argparse
 import os
+import glob
 
 def calculate_average_attempts(jsonl_path, expected_count=300, strong_weak=False, router=False, routing_decisions_path=None):
     """
@@ -142,13 +143,141 @@ def get_missing_ids_routing(routing_decisions_path, processed_ids):
     
     return missing_ids_routing
 
+def calculate_best_of_n_attempts(directory, expected_count=300, router=False, routing_decisions_path=None):
+    """
+    Calculate the average number of attempts from all temp_{i}.jsonl files in a directory.
+    For each instance missing in a temp file, add 10 attempts.
+    
+    Args:
+        directory (str): Path to the directory containing temp_{i}.jsonl files
+        expected_count (int): Expected number of entries (default: 300)
+        router (bool): Whether to use routing decisions for missing entries
+        routing_decisions_path (str): Path to the routing decisions JSONL
+        
+    Returns:
+        float: Average number of attempts
+    """
+    # Find all temp_{i}.jsonl files in the directory
+    jsonl_files = glob.glob(os.path.join(directory, "temp_*.jsonl"))
+    
+    if not jsonl_files:
+        print(f"Error: No temp_*.jsonl files found in directory '{directory}'")
+        return None
+    
+    print(f"Found {len(jsonl_files)} temp_*.jsonl files in directory '{directory}'")
+    
+    # Set of all expected instance IDs (will be populated from files or routing decisions)
+    all_instance_ids = set()
+    
+    # Dictionary to track instances found in each file
+    instances_in_file = {file: set() for file in jsonl_files}
+    
+    # Dictionary to track attempts for each instance
+    instance_attempts = {}
+    
+    # Process each temp_{i}.jsonl file
+    for jsonl_file in jsonl_files:
+        try:
+            with open(jsonl_file, 'r') as file:
+                for line in file:
+                    try:
+                        entry = json.loads(line)
+                        
+                        if "instance_id" not in entry:
+                            continue
+                        
+                        instance_id = entry["instance_id"]
+                        all_instance_ids.add(instance_id)
+                        instances_in_file[jsonl_file].add(instance_id)
+                        
+                        # Initialize instance if not seen before
+                        if instance_id not in instance_attempts:
+                            instance_attempts[instance_id] = 0
+                        
+                        # Add attempts for this instance
+                        if "attempt" in entry:
+                            instance_attempts[instance_id] += entry["attempt"]
+                        else:
+                            # Count entries without "attempt" field as having 10 attempts
+                            instance_attempts[instance_id] += 10
+                            
+                    except json.JSONDecodeError:
+                        print(f"Warning: Skipping invalid JSON line in file '{jsonl_file}'")
+                        continue
+        except FileNotFoundError:
+            print(f"Error: File '{jsonl_file}' not found")
+            continue
+    
+    # If router is enabled and we have routing_decisions_path, collect all expected instance IDs
+    expected_instance_ids = set()
+    if router and routing_decisions_path:
+        try:
+            with open(routing_decisions_path, 'r') as file:
+                for line in file:
+                    try:
+                        entry = json.loads(line)
+                        if "instance_id" in entry:
+                            expected_instance_ids.add(entry["instance_id"])
+                    except json.JSONDecodeError:
+                        continue
+        except FileNotFoundError:
+            print(f"Error: Routing decisions file '{routing_decisions_path}' not found")
+    
+    # If we have expected instance IDs from routing decisions, use those
+    # Otherwise, use the union of all instance IDs found in files
+    if expected_instance_ids:
+        all_instance_ids.update(expected_instance_ids)
+    
+    # Now, for each instance, add 10 attempts for each file it's missing from
+    total_attempts = 0
+    for instance_id in all_instance_ids:
+        # Start with attempts we've already counted
+        attempts = instance_attempts.get(instance_id, 0)
+        
+        # For each file, if the instance is missing, add 10 attempts
+        for jsonl_file in jsonl_files:
+            if instance_id not in instances_in_file[jsonl_file]:
+                attempts += 10
+        
+        total_attempts += attempts
+    
+    # Handle missing instances if total is less than expected
+    missing_instances = expected_count - len(all_instance_ids)
+    if missing_instances > 0:
+        print(f"Warning: Found {len(all_instance_ids)} unique instances, expected {expected_count}. Adding attempts for missing instances.")
+        # Add 10 attempts per file for each entirely missing instance
+        total_attempts += missing_instances * 10 * len(jsonl_files)
+    
+    # Calculate average
+    return total_attempts / expected_count
+
+def get_default_routing_path(jsonl_path):
+    """
+    Calculate default routing decisions path based on the jsonl path
+    """
+    # Implementation depends on your directory structure
+    # This is a placeholder - modify as needed
+    base_dir = os.path.dirname(jsonl_path)
+    return os.path.join(base_dir, "routing_decisions.jsonl")
+
 def main():
-    parser = argparse.ArgumentParser(description='Calculate average attempts from a JSONL file')
-    parser.add_argument('--jsonl_path', type=str, required=True, help='Path to the JSONL file')
+    parser = argparse.ArgumentParser(description='Calculate average attempts from JSONL files')
+    parser.add_argument('--jsonl_path', type=str, help='Path to a single JSONL file')
     parser.add_argument('--strong_weak', action="store_true", help='Get strong-weak attempts')
     parser.add_argument('--router', action="store_true", help='Use routing decisions for missing entries')
     parser.add_argument('--routing_decisions_path', type=str, help='Path to the routing decisions JSONL')
+    parser.add_argument('--best_of_n', action="store_true", help='Use best-of-n approach with multiple temp_*.jsonl files')
+    parser.add_argument('--dir', type=str, help='Directory containing temp_*.jsonl files for best-of-n approach')
     args = parser.parse_args()
+    
+    # Validate arguments
+    if args.best_of_n and not args.dir:
+        print("Error: --dir is required when using --best_of_n")
+        return
+    
+    if not args.best_of_n and not args.jsonl_path:
+        print("Error: --jsonl_path is required when not using --best_of_n")
+        return
     
     # Determine routing decisions path if needed
     routing_decisions_path = None
@@ -156,27 +285,45 @@ def main():
         if args.routing_decisions_path:
             routing_decisions_path = args.routing_decisions_path
         else:
-            routing_decisions_path = get_default_routing_path(args.jsonl_path)
+            if args.best_of_n:
+                routing_decisions_path = os.path.join(args.dir, "routing_decisions.jsonl")
+            else:
+                routing_decisions_path = get_default_routing_path(args.jsonl_path)
             print(f"Using default routing decisions path: {routing_decisions_path}")
     
-    if args.strong_weak:
-        avg_strong_attempts, avg_weak_attempts = calculate_average_attempts(
-            args.jsonl_path, 
-            strong_weak=True, 
-            router=args.router, 
-            routing_decisions_path=routing_decisions_path
-        )    
-        if avg_strong_attempts is not None and avg_weak_attempts is not None:
-            print(f"Average strong attempts: {avg_strong_attempts:.2f}")
-            print(f"Average weak attempts: {avg_weak_attempts:.2f}")
-    else:
-        avg_attempts = calculate_average_attempts(
-            args.jsonl_path,
+    if args.best_of_n:
+        # Process multiple temp_*.jsonl files in directory
+        # Note: strong_weak is ignored in best_of_n mode
+        if args.strong_weak:
+            print("Note: --strong_weak is ignored in --best_of_n mode")
+            
+        avg_attempts = calculate_best_of_n_attempts(
+            args.dir,
             router=args.router,
             routing_decisions_path=routing_decisions_path
         )
         if avg_attempts is not None:
-            print(f"Average attempts: {avg_attempts:.2f}")
+            print(f"Average attempts (best-of-n): {avg_attempts:.2f}")
+    else:
+        # Process single JSONL file
+        if args.strong_weak:
+            avg_strong_attempts, avg_weak_attempts = calculate_average_attempts(
+                args.jsonl_path, 
+                strong_weak=True, 
+                router=args.router, 
+                routing_decisions_path=routing_decisions_path
+            )    
+            if avg_strong_attempts is not None and avg_weak_attempts is not None:
+                print(f"Average strong attempts: {avg_strong_attempts:.2f}")
+                print(f"Average weak attempts: {avg_weak_attempts:.2f}")
+        else:
+            avg_attempts = calculate_average_attempts(
+                args.jsonl_path,
+                router=args.router,
+                routing_decisions_path=routing_decisions_path
+            )
+            if avg_attempts is not None:
+                print(f"Average attempts: {avg_attempts:.2f}")
 
 if __name__ == "__main__":
     main()

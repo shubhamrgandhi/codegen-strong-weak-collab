@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import threading
+import pickle
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 
@@ -30,6 +31,46 @@ def process_instance(instance, args, file_lock):
     if args.repo_name is not None:
         if args.repo_name not in instance['instance_id']:
             return
+
+    # RepoGraph handling
+    if args.repo_graph:
+        issue_name = instance['instance_id']
+        if issue_name in args.repo_graph_prompts:
+            prompt = args.repo_graph_prompts[issue_name]
+            if prompt == "skipped since no files were localized":
+                print(f"Skipping {issue_name}: no files were localized")
+                return
+            
+            # Get the generator and initialize output files
+            generator = get_generator(args.backend)
+            if generator:
+                generator.initialize_output_files(args)
+            
+            if not generator:
+                raise ValueError(f"Unsupported backend: {args.backend}")
+                
+            # Use the prompt directly from the pickle file
+            git_diff = generator.generate_with_retries(
+                instance,
+                prompt,
+                args,
+                file_lock,
+                args.output_file,
+                instance.get("image_assets", None)
+            )
+            
+            if not git_diff:
+                print(
+                    f"Failed to generate valid response for {instance['instance_id']} after {args.max_retries} attempts"
+                )
+            else:
+                print(
+                    f"Processing completed for {instance['instance_id']}"
+                )
+            
+            return
+        else:
+            print(f"Warning: {issue_name} not found in repo_graph prompts")
 
     if args.use_raw_trajectories:
         # Load the trajectory for this instance
@@ -579,6 +620,17 @@ def parse_arguments():
         action="store_true",
         help="Use multimodal prompt",
     )
+    parser.add_argument(
+        "--repo_graph",
+        action="store_true",
+        help="Use repograph prompts from a pickle file",
+    )
+    parser.add_argument(
+        "--repo_graph_path",
+        type=str,
+        default="data/issue2repograph_prompt.pkl",
+        help="Path to the pickle file containing repograph prompts",
+    )
     return parser.parse_args()
 
 
@@ -591,6 +643,16 @@ if __name__ == "__main__":
     args.output_file = os.path.join(
         args.output_folder, os.path.basename(args.output_file)
     )
+
+    # Load repograph prompts if enabled
+    if args.repo_graph:
+        try:
+            with open(args.repo_graph_path, 'rb') as f:
+                args.repo_graph_prompts = pickle.load(f)
+            print(f"Loaded {len(args.repo_graph_prompts)} repograph prompts from {args.repo_graph_path}")
+        except Exception as e:
+            print(f"Error loading repograph prompts: {e}")
+            args.repo_graph_prompts = {}
 
     log_file = os.path.join(args.output_folder, "logs", "repair_parameters.json")
     with open(log_file, "w", encoding="utf-8") as f:

@@ -75,10 +75,12 @@ def get_model_pricing(model_name):
     # Define pricing for each model
     pricing = {
         # OpenAI models
+        "o4-mini": {"prompt": 1.1 / 1_000_000, "completion": 4.4 / 1_000_000},
         "o3-mini": {"prompt": 1.1 / 1_000_000, "completion": 4.4 / 1_000_000},
         "gpt-4o-mini": {"prompt": 0.15 / 1_000_000, "completion": 0.6 / 1_000_000},
         # Other models
         "qwen2.5-coder-7b-instruct": {"prompt": 0.05 / 1_000_000, "completion": 0.1 / 1_000_000},
+        "qwen2.5-coder-32b-instruct": {"prompt": 0.07 / 1_000_000, "completion": 0.15 / 1_000_000},
         "deepseek-r1-distill-llama-70b": {"prompt": 0.17 / 1_000_000, "completion": 0.4 / 1_000_000},
         # Default pricing (fallback)
         "default": {"prompt": 1.1 / 1_000_000, "completion": 4.4 / 1_000_000}

@@ -1,6 +1,9 @@
-vllm serve deepseek-ai/DeepSeek-R1-Distill-Qwen-7B \
+export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=3600
+export NCCL_P2P_DISABLE=1
+
+vllm serve Qwen/Qwen2.5-Coder-7B-Instruct \
   --port 8080 \
-  --tensor-parallel-size 2 \
+  --tensor-parallel-size 8 \
   --gpu-memory-utilization 0.85 \
   --enforce-eager \
   --dtype bfloat16 \

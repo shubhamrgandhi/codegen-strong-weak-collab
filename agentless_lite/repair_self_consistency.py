@@ -35,7 +35,7 @@ def load_existing_patches(instance, args):
     
     if not patch_files:
         print(f"No patch files found for {instance['instance_id']} in {debug_dir}")
-        return None, None
+        return [], []
     
     # Load patches
     for patch_file in patch_files[:args.num_samples]:
@@ -58,7 +58,7 @@ def generate_diverse_patches(instance, args, generator, prompt, file_lock):
     # First try to load existing patches if reuse is enabled
     if args.reuse_patches:
         patches, responses = load_existing_patches(instance, args)
-        if patches and responses:
+        if patches is not None and responses is not None:
             return patches[:args.num_samples], responses[:args.num_samples]
     
     patches = []

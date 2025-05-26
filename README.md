@@ -18,7 +18,7 @@ Our results show that strong–weak collaboration substantially boosts the weak 
 
 ### Create conda environment and install requirements
 ```bash
-conda create -n strong-weak-collab --python==3.11.11 
+conda create -n strong-weak-collab python=3.11.11
 conda activate strong-weak-collab
 pip install -r requirements.txt
 ```

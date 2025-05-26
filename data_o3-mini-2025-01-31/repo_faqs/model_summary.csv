@@ -1,0 +1,3 @@
+model,calls,prompt_tokens,completion_tokens,reasoning_tokens,prompt_cost,completion_cost,total_cost
+o3-mini-2025-01-31,12,84881,75368,39616,0.0933691,0.3316192,0.42498829999999993
+ALL,12,84881,75368,39616,0.0933691,0.3316192,0.42498829999999993

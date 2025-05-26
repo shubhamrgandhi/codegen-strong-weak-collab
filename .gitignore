@@ -16,7 +16,6 @@ babel_scripts
 *.sbatch
 sbatch_logs
 *_logs
-data_*/
 response_comparisons
 run_logs_*/
 sb-cli-reports_*/

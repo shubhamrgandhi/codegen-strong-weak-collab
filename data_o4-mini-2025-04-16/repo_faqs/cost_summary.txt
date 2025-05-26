@@ -1,0 +1,22 @@
+Total samples: 12
+Total API calls: 12
+Total prompt tokens: 84982
+Total completion tokens: 54071
+Total reasoning tokens: 23168
+Total prompt cost: $0.0935
+Total completion cost: $0.2379
+Total cost: $0.3314
+Average prompt tokens per sample: 7081.83
+Average completion tokens per sample: 4505.92
+Average reasoning tokens per sample: 1930.67
+Average cost per sample: $0.027616
+
+Model-wise statistics:
+  Model: o4-mini-2025-04-16
+    Calls: 12
+    Prompt tokens: 84982
+    Completion tokens: 54071
+    Reasoning tokens: 23168
+    Prompt cost: $0.0935
+    Completion cost: $0.2379
+    Total cost: $0.3314

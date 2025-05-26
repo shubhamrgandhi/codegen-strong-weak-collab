@@ -34,6 +34,9 @@ EXP="base"
 if [[ "$MODEL" == "o3-mini-2025-01-31"* ]]; then
   MAX_COMPLETION_TOKENS=78000
   MAX_INPUT_TOKENS=118000
+elif [[ "$MODEL" == "claude-3-5-sonnet-20241022"* ]]; then
+  MAX_COMPLETION_TOKENS=8000
+  MAX_INPUT_TOKENS=110000
 else
   MAX_COMPLETION_TOKENS=15000
   MAX_INPUT_TOKENS=110000
@@ -48,8 +51,8 @@ python agentless_lite/repair.py \
         --model $MODEL \
         --max_completion_tokens $MAX_COMPLETION_TOKENS \
         --max_input_tokens $MAX_INPUT_TOKENS \
-        --backend vllm \
-        --num_threads 2 \
+        --backend openai \
+        --num_threads 8 \
         --max_retries 10 \
         --max_files 5
 

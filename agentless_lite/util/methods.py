@@ -237,7 +237,7 @@ def load_info_or_repo_faq(instance_id, dir, args):
         return None
 
         
-def load_fs(instance_id, fs_path, loc_file, fs_mode="random_all", fs_k=3, eval_path='sb-cli-reports/swe-bench_lite__test__agentless_lite_base_o3-mini-2025-01-31.json', tokenizer = None, similarity_model = None):
+def load_fs(instance_id, fs_path, loc_file, fs_mode="random_all", fs_k=3, eval_path='sb-cli-reports/swe-bench_lite__test__agentless_lite_base_o4-mini-2025-04-16.json', tokenizer = None, similarity_model = None):
     """
     Load few-shot examples of similar problem statements and their solutions
     from the same repository, using either embedding-based similarity or random selection.
@@ -364,6 +364,7 @@ def load_fs(instance_id, fs_path, loc_file, fs_mode="random_all", fs_k=3, eval_p
                                                  max_length=512, return_tensors='pt')
                         
                         # Move tensors to the same device as the model
+                        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
                         encoded_input = {k: v.to(device) for k, v in encoded_input.items()}
                         
                         # Get model output

@@ -385,19 +385,19 @@ def parse_arguments():
     parser.add_argument(
         "--max_input_tokens",
         type=int,
-        default=111000,
+        default=115000,
         help="Maximum number of tokens allowed in the input prompt",
     )
     parser.add_argument(
         "--max_completion_tokens",
         type=int,
-        default=10000,
+        default=15000,
         help="Maximum number of tokens allowed in the completion response",
     )
     parser.add_argument(
         "--model",
         type=str,
-        default="o3-mini",
+        default="o4-mini-2025-04-16",
         help="Model to use for generating insights or FAQs",
     )
     parser.add_argument(

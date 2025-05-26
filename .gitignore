@@ -16,3 +16,10 @@ babel_scripts
 *.sbatch
 sbatch_logs
 *_logs
+data_*/
+response_comparisons
+run_logs_*/
+sb-cli-reports_*/
+scratchpad.txt  
+scripts/test_*
+qwen_test.py

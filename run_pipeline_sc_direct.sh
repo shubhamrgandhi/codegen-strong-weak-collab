@@ -51,7 +51,9 @@ python agentless_lite/repair_self_consistency.py \
         --num_threads 8 \
         --max_retries 10 \
         --max_files 5 \
-        --consistency_strategy direct
+        --consistency_strategy direct \
+        --reuse_patches \
+        --reuse_patches_dir results_o3-mini-2025-01-31/sc_direct_gpt-4o-mini-2024-07-18
 
 
 echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &"

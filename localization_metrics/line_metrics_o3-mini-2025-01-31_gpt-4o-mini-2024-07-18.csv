@@ -1,0 +1,21 @@
+Method,Line Precision,Line Recall,Line F1
+Base Strong,45.53,37.83,39.31
+Base Weak,35.92,28.49,29.97
+Self-Consistency - Direct,35.44,28.03,29.36
+Self-Consistency - Clustering,35.63,28.31,29.76
+Self-Consistency - Universal,35.44,28.03,29.36
+Best of N,36.55,29.11,30.34
+Strong LM Single Attempt,47.64,39.69,40.8
+Prompt Reduction,49.25,39.14,41.03
+Weak LM First,36.98,30.57,31.45
+Plan,42.43,35.5,36.11
+Instance Level QA Pairs,40.76,31.68,33.57
+Weak Router,39.14,34.35,34.48
+Strong Router,36.1,30.54,31.0
+1 Shot Succesfull - Random,34.57,27.75,28.94
+5 Shot Succesfull - Random,34.8,26.91,28.44
+1 Shot Succesfull - Similarity,33.72,25.96,27.34
+5 Shot Succesfull - Similarity,35.61,27.96,29.25
+Repo Structure,36.18,27.99,29.41
+Repo Level QA Pairs,36.48,29.27,30.43
+Repo Summary,36.31,29.31,30.26

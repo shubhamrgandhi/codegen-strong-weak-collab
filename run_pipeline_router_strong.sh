@@ -53,7 +53,7 @@ python agentless_lite/repair.py \
         --max_retries 10 \
         --max_files 5 \
         --use_router \
-        --router_model o3-mini-2025-01-31
+        --router_model o4-mini-2025-04-16
 
 
 echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &"

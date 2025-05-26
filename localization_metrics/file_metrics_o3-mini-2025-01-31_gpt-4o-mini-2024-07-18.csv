@@ -1,0 +1,21 @@
+Method,File Precision,File Recall,File F1
+Base Strong,76.62,76.79,76.68
+Base Weak,78.65,78.82,78.7
+Self-Consistency - Direct,76.25,76.25,76.25
+Self-Consistency - Clustering,75.75,75.92,75.81
+Self-Consistency - Universal,76.25,76.25,76.25
+Best of N,76.25,76.25,76.25
+Strong LM Single Attempt,77.42,77.78,77.54
+Prompt Reduction,83.16,83.67,83.33
+Weak LM First,77.61,77.78,77.67
+Plan,76.83,77.7,77.12
+Instance Level QA Pairs,77.3,78.45,77.64
+Weak Router,77.82,77.82,77.82
+Strong Router,73.04,73.38,73.15
+1 Shot Succesfull - Random,77.03,77.39,77.15
+5 Shot Succesfull - Random,74.05,74.05,74.05
+1 Shot Succesfull - Similarity,75.71,75.89,75.77
+5 Shot Succesfull - Similarity,77.78,77.78,77.78
+Repo Structure,71.51,71.68,71.57
+Repo Level QA Pairs,75.6,75.77,75.65
+Repo Summary,77.95,78.12,78.01

@@ -309,7 +309,7 @@ class OpenAIGenerator(BaseGenerator):
                     f"Making API call for {num_samples} samples with temperature {temperature}"
                 )
 
-                if "o3-mini" in args.model:
+                if "o3-mini" in args.model or "o4-mini" in args.model:
                     config = {
                         "model": args.model,
                         "messages": [{"role": "user", "content": prompt}],
@@ -394,7 +394,7 @@ class OpenAIGenerator(BaseGenerator):
             temperature = args.temp
             logger.info(f"Making batch API call with temperature {temperature}")
 
-            if "o3-mini" in args.model:
+            if "o3-mini" in args.model or "o4-mini" in args.model:
                 config = {
                     "model": args.model,
                     "messages": [{"role": "user", "content": prompt}],
@@ -509,7 +509,7 @@ class OpenAIGenerator(BaseGenerator):
         temperature = args.temp
         logger.info(f"Making batch API call with temperature {temperature}")
 
-        if "o3-mini" in args.model:
+        if "o3-mini" in args.model or "o4-mini" in args.model:
             config = {
                 "model": args.model,
                 "messages": [{"role": "user", "content": prompt}],
@@ -889,10 +889,184 @@ class VLLMGenerator(BaseGenerator):
         return all_responses[-1], output_entry
 
 
+def request_anthropic_engine(config, logger, max_retries=40):
+    ret = None
+    retries = 0
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+    while ret is None and retries < max_retries:
+        try:
+            logger.info(f"Creating Anthropic API request: \n\n{config}")
+            ret = client.messages.create(**config)
+
+            if ret is None:
+                logger.error(f"Invalid response received: {ret}")
+                raise Exception("Invalid API response")
+
+        except anthropic.APIError as e:
+            if isinstance(e, anthropic.BadRequestError):
+                logger.error("Request invalid")
+                logger.error(str(e))
+                raise Exception("Invalid API Request")
+            elif isinstance(e, anthropic.RateLimitError):
+                logger.info("Rate limit exceeded. Waiting...")
+                logger.error(str(e))
+                time.sleep(5)
+            elif isinstance(e, anthropic.APIConnectionError):
+                logger.info("API connection error. Waiting...")
+                logger.error(str(e))
+                time.sleep(5)
+            else:
+                logger.info("Unknown error. Waiting...")
+                logger.error(str(e))
+                time.sleep(1)
+
+        retries += 1
+        if retries >= max_retries:
+            logger.error(f"Max retries ({max_retries}) exceeded")
+            ret = None
+
+    logger.info(f"API response {ret}")
+    return ret
+
+
+class AnthropicGenerator(BaseGenerator):
+    def generate(
+        self,
+        instance,
+        prompt,
+        args,
+        file_lock,
+        output_file,
+        defer_writing=False,
+        image_assets=None,
+    ):
+        logs_dir = os.path.join(os.path.dirname(output_file), "logs")
+        logger = setup_logging(instance["instance_id"], logs_dir)
+        logger.info("Initializing Anthropic client")
+
+        existing_entry = self.get_existing_entry(instance, file_lock, output_file)
+        all_responses = [] if not existing_entry else existing_entry["responses"]
+
+        all_usage = (
+            existing_entry["usage"]
+            if existing_entry
+            else {"completion_tokens": 0, "prompt_tokens": 0, "temp": []}
+        )
+
+        start_index = len(all_responses)
+        for i in range(start_index, args.max_retries):
+            temperature = (
+                self.get_temperature_for_generation(i, args.temp, args.max_retries)
+                if args.warming
+                else args.temp
+            )
+            logger.info(
+                f"Making API call {i+1}/{args.max_retries} with temperature {temperature}"
+            )
+
+            config = {
+                "model": args.model,
+                "max_tokens": args.max_completion_tokens,
+                "temperature": temperature,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                        ],
+                    }
+                ],
+            }
+
+            if args.model == "claude-3-7-sonnet-20250219":
+                config["temperature"] = 1
+                config["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                }
+
+            if args.tool_use:
+                config["tools"] = ANTHROPIC_TOOLS
+
+            if image_assets:
+                content = config["messages"][0]["content"]
+                for image in image_assets:
+                    image_base64 = get_base64_from_url(image)
+                    content.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": image_base64,
+                                # "cache_control": {"type": "ephemeral"}
+                            },
+                        }
+                    )
+
+            completion = request_anthropic_engine(config, logger)
+
+            if completion:
+                if args.tool_use:
+                    logger.info("Processing tool use response")
+                    logger.info(f"Raw completion: {completion}")
+                    logger.info(f"Content blocks: {completion.content}")
+
+                    # Extract tool use commands
+                    edits = []
+                    for block in completion.content:
+                        logger.info(f"Processing content block: {block}")
+                        logger.info(f"Block type: {block.type}")
+
+                        if block.type == "tool_use":
+                            params = block.input
+                            logger.info(f"Tool call parameters: {params}")
+                            edits.append(
+                                (
+                                    params["path"],
+                                    params["old_str"],
+                                    params.get("new_str", ""),
+                                )
+                            )
+                            logger.info(f"Added edit: {edits[-1]}")
+
+                    logger.info(f"Final collected edits: {edits}")
+                    response = edits
+                else:
+                    response = completion.content[0].text
+
+                all_responses.append(response)
+                if args.warming:
+                    all_usage["temp"].append(temperature)
+            else:
+                all_responses.append("" if not args.tool_use else [])
+
+            output_entry = {
+                "instance_id": instance["instance_id"],
+                "found_files": instance["found_files"],
+                "file_contents": instance["file_contents"],
+                "responses": all_responses,
+                "usage": all_usage,
+            }
+
+            if not defer_writing:
+                self.update_output_file(output_entry, instance, file_lock, output_file)
+
+        logger.info("Output written successfully")
+        return all_responses[-1], output_entry
+
+
+
 def get_generator(backend_type):
     generators = {
         "openai": OpenAIGenerator(),
         "open_router": OpenRouterGenerator(),
         "vllm": VLLMGenerator(),
+        "anthropic": AnthropicGenerator(),
     }
     return generators.get(backend_type)

@@ -53,10 +53,9 @@ python agentless_lite/repair.py \
         --max_retries 10 \
         --max_files 5 \
         --use_prompt_reduction \
-        --weak_model gpt-4o-mini-2024-07-18 \
-        --instance_id astropy__astropy-6938
+        --weak_model gpt-4o-mini-2024-07-18
 
 
 echo "sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &"
 
-# sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &
+sb-cli submit --predictions_path results/${EXP}_${MODEL}/all_preds.jsonl --run_id agentless_lite_${EXP}_${MODEL} swe-bench_lite test  > run_logs/eval_agentless_lite_${EXP}_${MODEL}.log 2>&1 &

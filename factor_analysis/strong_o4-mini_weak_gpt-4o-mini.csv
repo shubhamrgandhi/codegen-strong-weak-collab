@@ -1,0 +1,22 @@
+Experiment,Performance,Cost
+Base Strong,0.4533,33.328
+Base Weak,0.1533,4.529
+Self-Consistency - Majority Vote,0.1433,35.307
+Self-Consistency - Clustering,0.1500,35.307
+Self-Consistency - Universal,0.1633,39.688
+Best of N,0.2167,35.307
+Strong LM Single Attempt,0.3800,23.616
+Strong LM First,0.4167,25.341
+Prompt Reduction,0.2733,56.021
+Weak LM First,0.1533,6.061
+Plan,0.2933,29.679
+Instance Level QA Pairs,0.2567,25.598
+Weak Router,0.2400,17.903
+Strong Router,0.2133,36.342
+Few Shot Examples (1 Shot Random),0.1367,5.060
+Few Shot Examples (5 Shot Random),0.1400,5.793
+Few Shot Examples (1 Shot Similarity),0.1567,4.796
+Few Shot Examples (5 Shot Similarity),0.1367,6.520
+Repo Structure,0.1367,4.288
+Repo Level QA Pairs,0.1467,4.699
+Repo Summary,0.1433,4.854

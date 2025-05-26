@@ -211,7 +211,7 @@ def universal_self_consistency(instance, patches, responses, generator, args, fi
                 pass
 
         # Generate using the selection prompt
-        selection_response = generator.generate(
+        selection_response, _ = generator.generate(
             instance,
             selection_prompt,
             selection_args,
@@ -220,12 +220,15 @@ def universal_self_consistency(instance, patches, responses, generator, args, fi
         )
         
         # Parse the selection response to find which patch was selected
+        # print(f"Doing selection match for {instance['instance_id']}")
         selection_match = re.search(r"SELECTED_PATCH:\s*(\d+)", selection_response)
+        # print(f"USC Selection match done for {instance['instance_id']}")
         if not selection_match:
             print(f"Failed to parse selection response for {instance['instance_id']}")
             return direct_consistency(patches)  # Fall back to direct consistency
-        
+        # print(f"USC selection response: {selection_response}")
         selected_index = int(selection_match.group(1)) - 1  # Convert to 0-indexed
+        # print(f"USC selected index: {selected_index}")
         if selected_index < 0 or selected_index >= len(patches):
             print(f"Invalid selection index {selected_index} for {instance['instance_id']}")
             return direct_consistency(patches)  # Fall back to direct consistency
@@ -431,7 +434,7 @@ def parse_arguments():
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=10,
+        default=8,
         help="Number of patches to generate for consistency checking (default: 10)",
     )
     parser.add_argument(

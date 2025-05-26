@@ -1,0 +1,21 @@
+Method,Module Precision,Module Recall,Module F1
+Base Strong,84.23,84.23,84.23
+Base Weak,78.65,78.82,78.7
+Self-Consistency - Direct,76.92,76.92,76.92
+Self-Consistency - Clustering,76.09,76.25,76.14
+Self-Consistency - Universal,77.42,77.59,77.48
+Best of N,76.25,76.25,76.25
+Strong LM Single Attempt,80.5,81.6,80.84
+Prompt Reduction,85.18,85.4,85.25
+Weak LM First,77.82,77.82,77.82
+Plan,85.5,86.62,85.87
+Instance Level QA Pairs,83.57,84.12,83.75
+Weak Router,79.87,80.28,79.99
+Strong Router,80.17,80.34,80.23
+1 Shot Succesfull - Random,77.93,77.93,77.93
+5 Shot Succesfull - Random,78.16,78.16,78.16
+1 Shot Succesfull - Similarity,78.22,78.4,78.28
+5 Shot Succesfull - Similarity,78.2,78.2,78.2
+Repo Structure,71.51,71.68,71.57
+Repo Level QA Pairs,77.21,77.21,77.21
+Repo Summary,76.25,76.66,76.36

@@ -36,18 +36,29 @@ def calculate_average_attempts(jsonl_path, expected_count=300, strong_weak=False
                     
                     if "model_name_or_path_actual" in entry:
                         if 'fallback' in jsonl_path:
-                            if "attempt" in entry:
-                                total_attempts += entry["attempt"]
-                                weak_attempts += 5
-                                strong_attempts += entry["attempt"]
+                            # print("Considering Fallback setting")
+                            if "o4-mini" not in entry["model_name_or_path_actual"]:
+                                if "attempt" in entry:
+                                    weak_attempts += entry["attempt"]
+                                    total_attempts += entry["attempt"]
+                                else:
+                                    # Count entries without "attempt" field as having 10 attempts
+                                    weak_attempts += 5
+                                    total_attempts += 10
                             else:
-                                # Count entries without "attempt" field as having 10 attempts
-                                total_attempts += 10
-                                weak_attempts += 5
-                                strong_attempts += 1
-                        elif "o3-mini" not in entry["model_name_or_path_actual"]:    
+                                if "attempt" in entry:
+                                    weak_attempts += 5
+                                    strong_attempts += entry["attempt"]
+                                    total_attempts += entry["attempt"]
+                                else:
+                                    # Count entries without "attempt" field as having 10 attempts
+                                    weak_attempts += 5
+                                    strong_attempts += 1
+                                    total_attempts += 10
+                        elif "o4-mini" not in entry["model_name_or_path_actual"]:    
                             if "attempt" in entry:
                                 weak_attempts += entry["attempt"]
+                                strong_attempts += 1
                                 total_attempts += entry["attempt"]
                             else:
                                 # Count entries without "attempt" field as having 10 attempts
@@ -59,7 +70,7 @@ def calculate_average_attempts(jsonl_path, expected_count=300, strong_weak=False
                                 total_attempts += entry["attempt"]
                             else:
                                 # Count entries without "attempt" field as having 10 attempts
-                                strong_attempts += 10
+                                strong_attempts += 1
                                 total_attempts += 10                            
                     else:
                         if "attempt" in entry:
@@ -83,7 +94,7 @@ def calculate_average_attempts(jsonl_path, expected_count=300, strong_weak=False
                 
                 # Count strong and weak attempts based on routing decisions
                 for instance_id, model in missing_ids_routing.items():
-                    if "o3-mini" in model:
+                    if "o4-mini" in model:
                         strong_attempts += 10
                         total_attempts += 10
                     else:
@@ -96,12 +107,12 @@ def calculate_average_attempts(jsonl_path, expected_count=300, strong_weak=False
                     print(f"Warning: {remaining_missing} missing entries not found in routing decisions. Using default allocation.")
                     total_attempts += remaining_missing * 10
                     strong_attempts += remaining_missing * 1
-                    weak_attempts += remaining_missing * 5
+                    weak_attempts += remaining_missing * 10
             else:
                 # Use the original allocation
                 total_attempts += missing_entries * 10
                 strong_attempts += missing_entries * 1
-                weak_attempts += missing_entries * 5
+                weak_attempts += missing_entries * 10
         
         # Always divide by the expected count
         if strong_weak:
@@ -237,7 +248,7 @@ def calculate_best_of_n_attempts(directory, expected_count=300, router=False, ro
         # For each file, if the instance is missing, add 10 attempts
         for jsonl_file in jsonl_files:
             if instance_id not in instances_in_file[jsonl_file]:
-                attempts += 10
+                attempts += 4
         
         total_attempts += attempts
     
@@ -267,7 +278,7 @@ def main():
     parser.add_argument('--router', action="store_true", help='Use routing decisions for missing entries')
     parser.add_argument('--routing_decisions_path', type=str, help='Path to the routing decisions JSONL')
     parser.add_argument('--best_of_n', action="store_true", help='Use best-of-n approach with multiple temp_*.jsonl files')
-    parser.add_argument('--dir', type=str, help='Directory containing temp_*.jsonl files for best-of-n approach')
+    parser.add_argument('--dir', type=str, help='Directory containing temp_*.jsonl files for best-of-n approach', default='results/sc_direct_qwen-2.5-coder-14b-instruct')
     args = parser.parse_args()
     
     # Validate arguments

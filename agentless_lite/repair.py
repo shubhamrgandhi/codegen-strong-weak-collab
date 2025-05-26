@@ -239,7 +239,7 @@ def process_instance(instance, args, file_lock):
 
     if args.use_router:
         use_strong_model = route_instance(generator, instance, formatted_files, args, file_lock)
-        
+        # return
         if use_strong_model:
             print(f"Using strong model for {instance['instance_id']} based on router decision")
             # Create a deep copy of args for the strong model
@@ -482,8 +482,8 @@ def parse_arguments():
         "--backend",
         type=str,
         default="openai",
-        choices=["openai", "vllm", "open_router"],
-        help="The backend service to use for generation (openai or vllm)",
+        choices=["openai", "vllm", "open_router", "anthropic"],
+        help="The backend service to use for generation (openai, vllm or anthropic)",
     )
     parser.add_argument(
         "--tool_use",
@@ -509,7 +509,7 @@ def parse_arguments():
     parser.add_argument(
         "--plans_path",
         type=str,
-        default="results/generate_plan_o3-mini-2025-01-31/all_plans.jsonl",
+        default="results/generate_plan_o4-mini-2025-04-16/all_plans.jsonl",
         help="JSONL file containing plans",
     )
     parser.add_argument(
@@ -520,7 +520,7 @@ def parse_arguments():
     parser.add_argument(
         "--instance_faq_path",
         type=str,
-        default="results/generate_instance_faq_o3-mini-2025-01-31/all_instance_faqs.jsonl",
+        default="results/generate_instance_faq_o4-mini-2025-04-16/all_instance_faqs.jsonl",
         help="JSONL file containing instance FAQs",
     )
     parser.add_argument(
@@ -554,7 +554,7 @@ def parse_arguments():
     parser.add_argument(
         "--fs_path",
         type=str,
-        default="results/base_o3-mini-2025-01-31/all_preds.jsonl",
+        default="results/base_o4-mini-2025-04-16/all_preds.jsonl",
         help="JSONL file containing strong model predictions"
     )
     parser.add_argument(
@@ -566,7 +566,7 @@ def parse_arguments():
     parser.add_argument(
         "--strong_model",
         type=str,
-        default="o3-mini-2025-01-31",
+        default="o4-mini-2025-04-16",
         help="Strong model to use for the first generation attempt",
     )
     parser.add_argument(
@@ -603,7 +603,7 @@ def parse_arguments():
     parser.add_argument(
         "--eval_path",
         type=str,
-        default="sb-cli-reports/swe-bench_lite__test__agentless_lite_base_o3-mini-2025-01-31.json",
+        default="sb-cli-reports/swe-bench_lite__test__agentless_lite_base_o4-mini-2025-04-16.json",
         help="Path to the evaluation results JSON containing resolved_ids"
     )
     parser.add_argument("--logprobs", action="store_true")

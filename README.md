@@ -18,7 +18,7 @@ Our results show that strong–weak collaboration substantially boosts the weak 
 
 ### Create conda environment and install requirements
 ```bash
-conda create -n strong-weak-collab python=3.11.11
+conda create -n strong-weak-collab python=3.11
 conda activate strong-weak-collab
 pip install -r requirements.txt
 ```
@@ -62,7 +62,7 @@ bash run_pipeline_base.sh --model o3-mini-2025-01-31
 │   ├── get_avg_num_attempts.py      # Calculate API call attempts
 │   ├── analyze_categories.py        # Performance analysis by categories
 │   ├── compute_generation_cost.py   # Cost analysis
-│   ├── localizaiton_perf.py         # Localization performance
+│   ├── localization_perf.py         # Localization performance
 │   └── best_of_n_resolution_rate.py # Best-of-N analysis
 ├── run_retrieval.sh                 # Retrieval script
 ├── run_pipeline_*.sh                # Experiment scripts

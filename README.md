@@ -1,5 +1,9 @@
 # Strong-Weak Code Collaboration
 
+Code for the paper **[An Empirical Study on Strong-Weak Model Collaboration for Repo-level Code Generation](https://arxiv.org/abs/2505.20182)**
+
+![Strong-Weak Collaboration](assets/taxonomy.png)
+
 ## Overview
 
 We study cost-efficient collaboration between strong and weak language models for repository-level code generation, where the weak model handles simpler tasks at lower cost, and the most challenging tasks are delegated to the strong model.
@@ -11,8 +15,18 @@ Our results show that strong–weak collaboration substantially boosts the weak 
 
 ## Paper Reference
 
-**Citation:** [Placeholder - Coming soon]  
-**arXiv:** [Placeholder - Coming soon]
+**Citation:** 
+```bibtex
+@misc{gandhi2025empiricalstudystrongweakmodel,
+      title={An Empirical Study on Strong-Weak Model Collaboration for Repo-level Code Generation}, 
+      author={Shubham Gandhi and Atharva Naik and Yiqing Xie and Carolyn Rose},
+      year={2025},
+      eprint={2505.20182},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2505.20182}, 
+}
+```
 
 ## Installation
 
